@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Russian
+open_button=Порядок загрузки
+open_button_tooltip=Изменить порядок загрузки модов для следующего запуска
+title=Порядок загрузки модов
+subtitle=Переместите строки и нажмите Применить. Изменения вступят в силу при следующем запуске.
+btn_move_up=Вверх
+btn_move_down=Вниз
+btn_move_top=В начало
+btn_move_bottom=В конец
+btn_reload=Обновить
+btn_apply=Применить
+btn_close=Закрыть
+status_ready=Готово.
+status_load_failed=Ошибка загрузки: {0}
+status_loaded=Загружено модов: {0}.
+status_moved_pos=Перемещено на позицию {0}.
+status_moved_top=Перемещено в начало.
+status_moved_bottom=Перемещено в конец.
+status_nothing_to_save=Нечего сохранять.
+status_save_failed=Ошибка сохранения: {0}
+status_saved=Сохранено. Перезапустите игру, чтобы применить порядок.
+source_mods=локальные
+source_workshop=мастерская
+source_unknown=неизвестно
+suffix_disabled= [отключен]

@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Turkish
+open_button=Yukleme sirasi
+open_button_tooltip=Bir sonraki acilista kullanilacak mod yukleme sirasini duzenle
+title=Mod yukleme sirasi
+subtitle=Satirlari tasiyip Uygula'ya basin. Degisiklik bir sonraki acilista etkili olur.
+btn_move_up=Yukari
+btn_move_down=Asagi
+btn_move_top=En uste
+btn_move_bottom=En alta
+btn_reload=Yenile
+btn_apply=Uygula
+btn_close=Kapat
+status_ready=Hazir.
+status_load_failed=Yukleme basarisiz: {0}
+status_loaded={0} mod yuklendi.
+status_moved_pos={0}. siraya tasindi.
+status_moved_top=En uste tasindi.
+status_moved_bottom=En alta tasindi.
+status_nothing_to_save=Kaydedilecek bir sey yok.
+status_save_failed=Kaydetme basarisiz: {0}
+status_saved=Kaydedildi. Sirayi uygulamak icin oyunu yeniden baslatin.
+source_mods=yerel
+source_workshop=atolye
+source_unknown=bilinmiyor
+suffix_disabled= [devre disi]

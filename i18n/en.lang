@@ -1,0 +1,25 @@
+# LoadOrderManager localization - English
+open_button=Load Order
+open_button_tooltip=Edit next-launch mod load order
+title=Mod Load Order
+subtitle=Move rows, then click Apply. Change takes effect next launch.
+btn_move_up=Move Up
+btn_move_down=Move Down
+btn_move_top=Move Top
+btn_move_bottom=Move Bottom
+btn_reload=Reload
+btn_apply=Apply
+btn_close=Close
+status_ready=Ready.
+status_load_failed=Load failed: {0}
+status_loaded=Loaded {0} mods.
+status_moved_pos=Moved to position {0}.
+status_moved_top=Moved to top.
+status_moved_bottom=Moved to bottom.
+status_nothing_to_save=Nothing to save.
+status_save_failed=Save failed: {0}
+status_saved=Saved. Restart game to apply load order.
+source_mods=mods
+source_workshop=workshop
+source_unknown=unknown
+suffix_disabled= [disabled]

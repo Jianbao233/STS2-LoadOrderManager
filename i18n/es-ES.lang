@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Spanish (Spain)
+open_button=Orden de carga
+open_button_tooltip=Editar el orden de carga de mods para el proximo inicio
+title=Orden de carga de mods
+subtitle=Mueve las filas y luego pulsa Aplicar. El cambio se aplicara en el proximo inicio.
+btn_move_up=Subir
+btn_move_down=Bajar
+btn_move_top=Ir arriba
+btn_move_bottom=Ir abajo
+btn_reload=Recargar
+btn_apply=Aplicar
+btn_close=Cerrar
+status_ready=Listo.
+status_load_failed=Error al cargar: {0}
+status_loaded=Se han cargado {0} mods.
+status_moved_pos=Movido a la posicion {0}.
+status_moved_top=Movido arriba.
+status_moved_bottom=Movido abajo.
+status_nothing_to_save=No hay nada que guardar.
+status_save_failed=Error al guardar: {0}
+status_saved=Guardado. Reinicia el juego para aplicar el orden.
+source_mods=local
+source_workshop=workshop
+source_unknown=desconocido
+suffix_disabled= [desactivado]

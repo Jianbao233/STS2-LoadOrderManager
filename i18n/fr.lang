@@ -1,0 +1,25 @@
+# LoadOrderManager localization - French
+open_button=Ordre de chargement
+open_button_tooltip=Modifier l ordre de chargement des mods pour le prochain lancement
+title=Ordre de chargement des mods
+subtitle=Deplacez les lignes puis cliquez sur Appliquer. Le changement prendra effet au prochain lancement.
+btn_move_up=Monter
+btn_move_down=Descendre
+btn_move_top=Mettre en haut
+btn_move_bottom=Mettre en bas
+btn_reload=Recharger
+btn_apply=Appliquer
+btn_close=Fermer
+status_ready=Pret.
+status_load_failed=Echec du chargement : {0}
+status_loaded={0} mods charges.
+status_moved_pos=Deplace a la position {0}.
+status_moved_top=Deplace en haut.
+status_moved_bottom=Deplace en bas.
+status_nothing_to_save=Rien a enregistrer.
+status_save_failed=Echec de l enregistrement : {0}
+status_saved=Enregistre. Redemarrez le jeu pour appliquer l ordre.
+source_mods=local
+source_workshop=atelier
+source_unknown=inconnu
+suffix_disabled= [desactive]

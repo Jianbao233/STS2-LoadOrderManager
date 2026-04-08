@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Portuguese (Brazil)
+open_button=Ordem de carregamento
+open_button_tooltip=Editar a ordem de carregamento dos mods para a proxima inicializacao
+title=Ordem de carregamento dos mods
+subtitle=Mova as linhas e clique em Aplicar. A alteracao entra em vigor na proxima inicializacao.
+btn_move_up=Subir
+btn_move_down=Descer
+btn_move_top=Para o topo
+btn_move_bottom=Para o fim
+btn_reload=Recarregar
+btn_apply=Aplicar
+btn_close=Fechar
+status_ready=Pronto.
+status_load_failed=Falha ao carregar: {0}
+status_loaded={0} mods carregados.
+status_moved_pos=Movido para a posicao {0}.
+status_moved_top=Movido para o topo.
+status_moved_bottom=Movido para o fim.
+status_nothing_to_save=Nada para salvar.
+status_save_failed=Falha ao salvar: {0}
+status_saved=Salvo. Reinicie o jogo para aplicar a ordem.
+source_mods=local
+source_workshop=oficina
+source_unknown=desconhecido
+suffix_disabled= [desativado]

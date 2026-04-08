@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Polish
+open_button=Kolejnosc ladowania
+open_button_tooltip=Edytuj kolejnosc ladowania modow dla nastepnego uruchomienia
+title=Kolejnosc ladowania modow
+subtitle=Przesun wiersze i kliknij Zastosuj. Zmiana zadziala przy nastepnym uruchomieniu.
+btn_move_up=Do gory
+btn_move_down=W dol
+btn_move_top=Na poczatek
+btn_move_bottom=Na koniec
+btn_reload=Przeladuj
+btn_apply=Zastosuj
+btn_close=Zamknij
+status_ready=Gotowe.
+status_load_failed=Blad ladowania: {0}
+status_loaded=Zaladowano modow: {0}.
+status_moved_pos=Przeniesiono na pozycje {0}.
+status_moved_top=Przeniesiono na poczatek.
+status_moved_bottom=Przeniesiono na koniec.
+status_nothing_to_save=Brak danych do zapisania.
+status_save_failed=Blad zapisu: {0}
+status_saved=Zapisano. Uruchom ponownie gre, aby zastosowac kolejnosc.
+source_mods=lokalne
+source_workshop=warsztat
+source_unknown=nieznane
+suffix_disabled= [wylaczony]

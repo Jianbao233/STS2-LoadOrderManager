@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Japanese
+open_button=ロード順
+open_button_tooltip=次回起動時のModロード順を編集します
+title=Modロード順
+subtitle=行を移動して「適用」を押してください。変更は次回起動時に反映されます。
+btn_move_up=上へ
+btn_move_down=下へ
+btn_move_top=先頭へ
+btn_move_bottom=末尾へ
+btn_reload=再読込
+btn_apply=適用
+btn_close=閉じる
+status_ready=準備完了。
+status_load_failed=読み込み失敗: {0}
+status_loaded={0} 件のModを読み込みました。
+status_moved_pos={0} 番目に移動しました。
+status_moved_top=先頭に移動しました。
+status_moved_bottom=末尾に移動しました。
+status_nothing_to_save=保存する内容がありません。
+status_save_failed=保存失敗: {0}
+status_saved=保存しました。反映にはゲームの再起動が必要です。
+source_mods=ローカル
+source_workshop=ワークショップ
+source_unknown=不明
+suffix_disabled= [無効]

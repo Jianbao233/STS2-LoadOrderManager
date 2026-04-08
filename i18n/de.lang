@@ -1,0 +1,25 @@
+# LoadOrderManager localization - German
+open_button=Ladereihenfolge
+open_button_tooltip=Die Mod-Ladereihenfolge fuer den naechsten Start bearbeiten
+title=Mod-Ladereihenfolge
+subtitle=Eintraege verschieben und dann auf Anwenden klicken. Die Aenderung gilt ab dem naechsten Start.
+btn_move_up=Nach oben
+btn_move_down=Nach unten
+btn_move_top=Ganz nach oben
+btn_move_bottom=Ganz nach unten
+btn_reload=Neu laden
+btn_apply=Anwenden
+btn_close=Schliessen
+status_ready=Bereit.
+status_load_failed=Laden fehlgeschlagen: {0}
+status_loaded={0} Mods geladen.
+status_moved_pos=Auf Position {0} verschoben.
+status_moved_top=Nach oben verschoben.
+status_moved_bottom=Nach unten verschoben.
+status_nothing_to_save=Nichts zu speichern.
+status_save_failed=Speichern fehlgeschlagen: {0}
+status_saved=Gespeichert. Starte das Spiel neu, um die Reihenfolge anzuwenden.
+source_mods=Lokal
+source_workshop=Workshop
+source_unknown=Unbekannt
+suffix_disabled= [deaktiviert]

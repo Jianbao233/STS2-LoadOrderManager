@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Traditional Chinese
+open_button=載入順序
+open_button_tooltip=編輯下次啟動時的模組載入順序
+title=模組載入順序
+subtitle=調整項目順序後按套用。變更將在下次啟動生效。
+btn_move_up=上移
+btn_move_down=下移
+btn_move_top=置頂
+btn_move_bottom=置底
+btn_reload=重載
+btn_apply=套用
+btn_close=關閉
+status_ready=準備就緒。
+status_load_failed=載入失敗：{0}
+status_loaded=已載入 {0} 個模組。
+status_moved_pos=已移動到第 {0} 位。
+status_moved_top=已置頂。
+status_moved_bottom=已置底。
+status_nothing_to_save=沒有可儲存內容。
+status_save_failed=儲存失敗：{0}
+status_saved=已儲存。重啟遊戲後生效。
+source_mods=本機
+source_workshop=工作坊
+source_unknown=未知
+suffix_disabled= [已停用]

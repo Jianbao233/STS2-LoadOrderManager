@@ -1,0 +1,25 @@
+# LoadOrderManager localization - Italian
+open_button=Ordine di caricamento
+open_button_tooltip=Modifica l ordine di caricamento dei mod per il prossimo avvio
+title=Ordine di caricamento mod
+subtitle=Sposta le righe e poi fai clic su Applica. La modifica avra effetto al prossimo avvio.
+btn_move_up=Su
+btn_move_down=Giu
+btn_move_top=In cima
+btn_move_bottom=In fondo
+btn_reload=Ricarica
+btn_apply=Applica
+btn_close=Chiudi
+status_ready=Pronto.
+status_load_failed=Caricamento non riuscito: {0}
+status_loaded=Caricati {0} mod.
+status_moved_pos=Spostato alla posizione {0}.
+status_moved_top=Spostato in cima.
+status_moved_bottom=Spostato in fondo.
+status_nothing_to_save=Nulla da salvare.
+status_save_failed=Salvataggio non riuscito: {0}
+status_saved=Salvato. Riavvia il gioco per applicare l ordine.
+source_mods=locale
+source_workshop=workshop
+source_unknown=sconosciuto
+suffix_disabled= [disabilitato]
