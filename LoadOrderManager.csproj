@@ -6,9 +6,9 @@
     <NoWarn>CA2255</NoWarn>
     <RootNamespace>LoadOrderManager</RootNamespace>
     <AssemblyName>LoadOrderManager</AssemblyName>
-    <Version>0.1.0</Version>
-    <FileVersion>0.1.0</FileVersion>
-    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <Version>0.2.0</Version>
+    <FileVersion>0.2.0</FileVersion>
+    <AssemblyVersion>0.2.0</AssemblyVersion>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Lib.Harmony" Version="2.3.3" />

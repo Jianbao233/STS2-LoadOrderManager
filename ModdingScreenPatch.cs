@@ -24,7 +24,7 @@ internal static class ModdingScreenReadyPatch
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[LoadOrderManager] UI inject failed: {ex.Message}");
+            DebugLog.Error("UI inject failed.", ex);
         }
     }
 }
@@ -61,12 +61,13 @@ internal static class LoadOrderUiInjector
 
         button.Pressed += () =>
         {
+            DebugLog.Info("Load-order button clicked.");
             var panel = EnsurePanel(screen);
             panel.OpenPanel();
         };
 
         screen.AddChild(button);
-        GD.Print("[LoadOrderManager] Injected load-order button.");
+        DebugLog.Info($"Injected load-order button into {screen.GetType().FullName}.");
     }
 
     private static LoadOrderPanel EnsurePanel(Control screen)

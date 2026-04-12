@@ -19,6 +19,7 @@ status_moved_bottom=已置底。
 status_nothing_to_save=没有可保存内容。
 status_save_failed=保存失败：{0}
 status_saved=已保存。重启游戏后生效。
+warning_overwritten=警告：当前模组顺序与上次应用快照（{0}）不一致，可能被依赖排序或其他模组覆盖。
 source_mods=本地
 source_workshop=创意工坊
 source_unknown=未知

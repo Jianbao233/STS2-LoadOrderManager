@@ -19,6 +19,7 @@ status_moved_bottom=Moved to bottom.
 status_nothing_to_save=Nothing to save.
 status_save_failed=Save failed: {0}
 status_saved=Saved. Restart game to apply load order.
+warning_overwritten=Warning: Current mod order differs from your last apply snapshot ({0}). It may have been overwritten by dependency sorting or another mod.
 source_mods=mods
 source_workshop=workshop
 source_unknown=unknown

@@ -19,6 +19,7 @@ status_moved_bottom=En alta tasindi.
 status_nothing_to_save=Kaydedilecek bir sey yok.
 status_save_failed=Kaydetme basarisiz: {0}
 status_saved=Kaydedildi. Sirayi uygulamak icin oyunu yeniden baslatin.
+warning_overwritten=Uyari: guncel mod sirasi son uygulama anlik goruntusunden ({0}) farkli. Bagimlilik siralamasi veya baska bir mod tarafindan uzerine yazilmis olabilir.
 source_mods=yerel
 source_workshop=atolye
 source_unknown=bilinmiyor

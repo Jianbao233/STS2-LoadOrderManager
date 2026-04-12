@@ -11,6 +11,7 @@ public partial class LoadOrderPanel : Control
 
     private ItemList _list = null!;
     private Label _statusLabel = null!;
+    private Label _warningLabel = null!;
 
     public override void _Ready()
     {
@@ -33,6 +34,7 @@ public partial class LoadOrderPanel : Control
     {
         BuildUiIfNeeded();
         Visible = true;
+        DebugLog.Info("OpenPanel called.");
         RefreshFromRuntime();
     }
 
@@ -101,6 +103,17 @@ public partial class LoadOrderPanel : Control
         };
         root.AddChild(subtitle);
 
+        _warningLabel = new Label
+        {
+            Visible = false,
+            Text = string.Empty,
+            Modulate = new Color(1f, 0.77f, 0.3f),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill
+        };
+        root.AddChild(_warningLabel);
+
         var body = new HBoxContainer();
         body.SizeFlagsVertical = SizeFlags.ExpandFill;
         body.AddThemeConstantOverride("separation", 10);
@@ -162,6 +175,8 @@ public partial class LoadOrderPanel : Control
             _entries.Clear();
             RefreshListOnly();
             SetStatus(I18n.Tf("status_load_failed", error));
+            DebugLog.Error($"Refresh failed: {error}");
+            RefreshOverwriteWarning();
             return;
         }
 
@@ -175,6 +190,22 @@ public partial class LoadOrderPanel : Control
         }
 
         SetStatus(I18n.Tf("status_loaded", _entries.Count));
+        DebugLog.Info($"Loaded {_entries.Count} mods into panel.");
+        RefreshOverwriteWarning();
+    }
+
+    private void RefreshOverwriteWarning()
+    {
+        if (LoadOrderRuntime.TryBuildOverwriteWarning(out var warningText) &&
+            !string.IsNullOrWhiteSpace(warningText))
+        {
+            _warningLabel.Text = warningText;
+            _warningLabel.Visible = true;
+            return;
+        }
+
+        _warningLabel.Text = string.Empty;
+        _warningLabel.Visible = false;
     }
 
     private void RefreshListOnly()
@@ -247,10 +278,14 @@ public partial class LoadOrderPanel : Control
         if (!LoadOrderRuntime.TrySaveOrderedEntries(_entries, out var error))
         {
             SetStatus(I18n.Tf("status_save_failed", error));
+            DebugLog.Error($"Apply failed: {error}");
+            RefreshOverwriteWarning();
             return;
         }
 
         SetStatus(I18n.T("status_saved"));
+        DebugLog.Info("Apply succeeded. Restart required for effect.");
+        RefreshOverwriteWarning();
     }
 
     private void SetStatus(string text)

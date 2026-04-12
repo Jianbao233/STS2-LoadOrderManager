@@ -49,7 +49,7 @@ internal static class I18n
             var i18nDir = GetI18nDirectory();
             if (!Directory.Exists(i18nDir))
             {
-                GD.PrintErr($"[LoadOrderManager] i18n directory not found: {i18nDir}");
+                DebugLog.Error($"i18n directory not found: {i18nDir}");
                 _loaded = true;
                 return;
             }
@@ -66,9 +66,10 @@ internal static class I18n
 
             if (!Tables.ContainsKey("en"))
             {
-                GD.PrintErr("[LoadOrderManager] Missing en.lang; fallback texts may be unavailable.");
+                DebugLog.Warn("Missing en.lang; fallback texts may be unavailable.");
             }
 
+            DebugLog.Info($"i18n loaded from: {i18nDir}, languages: {string.Join(", ", Tables.Keys)}");
             _loaded = true;
         }
     }

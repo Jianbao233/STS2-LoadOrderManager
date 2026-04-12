@@ -19,6 +19,7 @@ status_moved_bottom=Movido abajo.
 status_nothing_to_save=No hay nada que guardar.
 status_save_failed=Error al guardar: {0}
 status_saved=Guardado. Reinicia el juego para aplicar el orden.
+warning_overwritten=Aviso: el orden actual de mods difiere del ultimo snapshot aplicado ({0}). Puede haber sido sobrescrito por el ordenamiento de dependencias u otro mod.
 source_mods=local
 source_workshop=workshop
 source_unknown=desconocido

@@ -19,6 +19,7 @@ status_moved_bottom=末尾に移動しました。
 status_nothing_to_save=保存する内容がありません。
 status_save_failed=保存失敗: {0}
 status_saved=保存しました。反映にはゲームの再起動が必要です。
+warning_overwritten=警告: 現在のMod順が前回適用スナップショット（{0}）と一致しません。依存関係ソートまたは他のModに上書きされた可能性があります。
 source_mods=ローカル
 source_workshop=ワークショップ
 source_unknown=不明

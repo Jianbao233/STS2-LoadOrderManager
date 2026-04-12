@@ -19,6 +19,7 @@ status_moved_bottom=Spostato in fondo.
 status_nothing_to_save=Nulla da salvare.
 status_save_failed=Salvataggio non riuscito: {0}
 status_saved=Salvato. Riavvia il gioco per applicare l ordine.
+warning_overwritten=Avviso: l ordine mod corrente differisce dall ultima istantanea applicata ({0}). Potrebbe essere stato sovrascritto dal riordino dipendenze o da un altro mod.
 source_mods=locale
 source_workshop=workshop
 source_unknown=sconosciuto

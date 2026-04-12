@@ -19,6 +19,7 @@ status_moved_bottom=已置底。
 status_nothing_to_save=沒有可儲存內容。
 status_save_failed=儲存失敗：{0}
 status_saved=已儲存。重啟遊戲後生效。
+warning_overwritten=警告：目前模組順序與上次套用快照（{0}）不一致，可能被依賴排序或其他模組覆蓋。
 source_mods=本機
 source_workshop=工作坊
 source_unknown=未知

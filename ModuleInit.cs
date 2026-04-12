@@ -15,7 +15,7 @@ public static class ModuleInit
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[LoadOrderManager] ModuleInitializer failed: {ex}");
+            DebugLog.Error("ModuleInitializer failed.", ex);
         }
     }
 }

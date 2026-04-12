@@ -19,6 +19,7 @@ status_moved_bottom=Nach unten verschoben.
 status_nothing_to_save=Nichts zu speichern.
 status_save_failed=Speichern fehlgeschlagen: {0}
 status_saved=Gespeichert. Starte das Spiel neu, um die Reihenfolge anzuwenden.
+warning_overwritten=Warnung: Die aktuelle Mod-Reihenfolge weicht vom letzten Apply-Snapshot ({0}) ab. Sie wurde moeglicherweise durch Abhaengigkeitssortierung oder ein anderes Mod ueberschrieben.
 source_mods=Lokal
 source_workshop=Workshop
 source_unknown=Unbekannt

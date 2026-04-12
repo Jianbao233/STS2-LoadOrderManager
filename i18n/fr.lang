@@ -19,6 +19,7 @@ status_moved_bottom=Deplace en bas.
 status_nothing_to_save=Rien a enregistrer.
 status_save_failed=Echec de l enregistrement : {0}
 status_saved=Enregistre. Redemarrez le jeu pour appliquer l ordre.
+warning_overwritten=Avertissement : l ordre actuel des mods differe du dernier instantane applique ({0}). Il a peut-etre ete ecrase par le tri des dependances ou un autre mod.
 source_mods=local
 source_workshop=atelier
 source_unknown=inconnu

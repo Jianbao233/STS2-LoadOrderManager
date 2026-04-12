@@ -19,6 +19,7 @@ status_moved_bottom=맨 아래로 이동했습니다.
 status_nothing_to_save=저장할 내용이 없습니다.
 status_save_failed=저장 실패: {0}
 status_saved=저장되었습니다. 적용하려면 게임을 재시작하세요.
+warning_overwritten=경고: 현재 모드 순서가 마지막 적용 스냅샷({0})과 다릅니다. 의존성 정렬 또는 다른 모드에 의해 덮어써졌을 수 있습니다.
 source_mods=로컬
 source_workshop=창작마당
 source_unknown=알 수 없음

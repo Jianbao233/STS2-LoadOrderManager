@@ -12,6 +12,9 @@ Changes apply on **next game launch**.
 - 在官方 `Modding` 页面注入 `Load Order` 按钮
 - 支持上移/下移/置顶/置底
 - 一键保存到 `settings.save`
+- 保存前进行用户 ID 作用域校验，只允许写入当前运行账号对应的 `settings.save`
+- Apply 后保存快照，并在后续启动自动做快照比对诊断
+- 检测到顺序疑似被依赖排序或其他 Mod 覆盖时，面板显示警告文案
 - 自动检测客户端语言并切换 UI 文案
 - i18n 采用**外部文件**，便于后续维护和社区共建
 
@@ -36,6 +39,14 @@ LoadOrderManager/
 - 本 mod 不热重载游戏资源，不会在运行中重新加载 DLL/PCK
 - 改动是“下次启动生效”，这与游戏原生加载机制一致
 - `affects_gameplay = false`，不改战斗逻辑
+
+---
+
+## 排查日志
+
+- 本 mod 会写独立日志到：`user://LoadOrderManager/load_order_manager.log`
+- Windows + Steam 通常位于：`%APPDATA%\SlayTheSpire2\steam\<你的SteamId>\LoadOrderManager\load_order_manager.log`
+- 关键记录：读取到的当前顺序、Apply 保存结果、保存后顺序校验、快照比对结果
 
 ---
 

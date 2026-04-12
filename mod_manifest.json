@@ -1,6 +1,6 @@
 {
   "id": "LoadOrderManager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "Load Order Manager / 模组加载顺序管理",
   "author": "bili@我叫煎包 / Codex",
   "description": "Add a load-order editor in Modding screen. Save next-launch mod order to settings.save.\n在模组界面增加加载顺序编辑器，保存到 settings.save，下次启动生效。",

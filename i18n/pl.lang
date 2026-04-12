@@ -19,6 +19,7 @@ status_moved_bottom=Przeniesiono na koniec.
 status_nothing_to_save=Brak danych do zapisania.
 status_save_failed=Blad zapisu: {0}
 status_saved=Zapisano. Uruchom ponownie gre, aby zastosowac kolejnosc.
+warning_overwritten=Ostrzezenie: biezaca kolejnosc modow rozni sie od ostatniej zapisanej migawki zastosowania ({0}). Mogla zostac nadpisana przez sortowanie zaleznosci lub inny mod.
 source_mods=lokalne
 source_workshop=warsztat
 source_unknown=nieznane
