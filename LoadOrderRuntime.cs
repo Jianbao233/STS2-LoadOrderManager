@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HarmonyLib;
@@ -274,7 +275,7 @@ internal static class LoadOrderRuntime
 
             SetMemberValue(modSettings, "ModList", modList);
 
-            var saveManagerType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Saves.SaveManager");
+            var saveManagerType = ResolveCoreType("MegaCrit.Sts2.Core.Saves.SaveManager");
             var saveSettings = AccessTools.Method(saveManagerType, "SaveSettings", Type.EmptyTypes);
             if (saveSettings == null)
             {
@@ -313,21 +314,34 @@ internal static class LoadOrderRuntime
     private static Dictionary<string, LoadOrderEntry> ReadLoadedMods()
     {
         var dict = new Dictionary<string, LoadOrderEntry>(StringComparer.Ordinal);
-        var modManagerType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Modding.ModManager");
-        var allModsObj = AccessTools.Property(modManagerType, "AllMods")?.GetValue(null);
-        if (allModsObj is not IEnumerable allMods) return dict;
-
-        foreach (var modObj in allMods)
+        var modManagerType = ResolveCoreType("MegaCrit.Sts2.Core.Modding.ModManager");
+        if (modManagerType == null)
         {
-            var manifest = GetMemberValue(modObj, "manifest");
-            var id = AsString(GetMemberValue(manifest, "id"));
-            if (string.IsNullOrWhiteSpace(id)) continue;
+            DebugLog.Warn("ReadLoadedMods: ModManager type not found.");
+            return dict;
+        }
 
-            var name = AsString(GetMemberValue(manifest, "name"));
-            var source = ToInt(GetMemberValue(modObj, "modSource"));
-            var key = LoadOrderEntry.BuildKey(id, source);
+        if (TryCollectModsFromMember(modManagerType, "AllMods", dict))
+        {
+            DebugLog.Info($"ReadLoadedMods: collected {dict.Count} entries from ModManager.AllMods.");
+            return dict;
+        }
 
-            dict[key] = new LoadOrderEntry(id, name ?? id, source, true);
+        if (TryCollectModsFromMember(modManagerType, "_mods", dict))
+        {
+            DebugLog.Warn($"ReadLoadedMods: AllMods empty, fallback to ModManager._mods ({dict.Count}).");
+            return dict;
+        }
+
+        if (TryCollectModsFromMember(modManagerType, "LoadedMods", dict))
+        {
+            DebugLog.Warn($"ReadLoadedMods: AllMods/_mods empty, fallback to ModManager.LoadedMods ({dict.Count}).");
+            return dict;
+        }
+
+        if (TryCollectModsFromSettings(dict))
+        {
+            DebugLog.Warn($"ReadLoadedMods: ModManager lists empty, fallback to settings.mod_list ({dict.Count}).");
         }
 
         return dict;
@@ -338,7 +352,8 @@ internal static class LoadOrderRuntime
         orderedKeys = new List<string>();
         enabledByKey = new Dictionary<string, bool>(StringComparer.Ordinal);
 
-        var saveManagerType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Saves.SaveManager");
+        var saveManagerType = ResolveCoreType("MegaCrit.Sts2.Core.Saves.SaveManager");
+        if (saveManagerType == null) return;
         var saveManager = AccessTools.Property(saveManagerType, "Instance")?.GetValue(null);
         var settingsSave = GetMemberValue(saveManager, "SettingsSave");
         var modSettings = GetMemberValue(settingsSave, "ModSettings");
@@ -364,7 +379,7 @@ internal static class LoadOrderRuntime
         context = null!;
         error = string.Empty;
 
-        var saveManagerType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Saves.SaveManager");
+        var saveManagerType = ResolveCoreType("MegaCrit.Sts2.Core.Saves.SaveManager");
         if (saveManagerType == null)
         {
             error = "SaveManager type not found.";
@@ -467,6 +482,144 @@ internal static class LoadOrderRuntime
         {
             return null;
         }
+    }
+
+    private static Type? ResolveCoreType(string fullTypeName)
+    {
+        var coreAssembly = ResolveCoreAssembly();
+        var coreType = coreAssembly?.GetType(fullTypeName, false, false);
+        if (coreType != null)
+        {
+            return coreType;
+        }
+
+        var fallback = AccessTools.TypeByName(fullTypeName);
+        if (fallback != null)
+        {
+            DebugLog.Warn($"ResolveCoreType fallback used for {fullTypeName}: {fallback.Assembly.FullName}");
+        }
+
+        return fallback;
+    }
+
+    private static Assembly? ResolveCoreAssembly()
+    {
+        var saveManagerType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Saves.SaveManager");
+        return saveManagerType?.Assembly;
+    }
+
+    private static bool TryCollectModsFromMember(Type modManagerType, string memberName, Dictionary<string, LoadOrderEntry> dict)
+    {
+        object? value = null;
+        var prop = AccessTools.Property(modManagerType, memberName);
+        if (prop != null)
+        {
+            value = prop.GetValue(null);
+        }
+        else
+        {
+            var field = AccessTools.Field(modManagerType, memberName);
+            if (field != null)
+            {
+                value = field.GetValue(null);
+            }
+        }
+
+        if (value is not IEnumerable items)
+        {
+            return false;
+        }
+
+        return TryCollectMods(items, dict);
+    }
+
+    private static bool TryCollectMods(IEnumerable modList, Dictionary<string, LoadOrderEntry> dict)
+    {
+        var added = 0;
+
+        foreach (var modObj in modList)
+        {
+            var manifest = GetMemberValue(modObj, "manifest");
+            var id = AsString(GetMemberValue(manifest, "id"));
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            var name = AsString(GetMemberValue(manifest, "name"));
+            var source = ToInt(GetMemberValue(modObj, "modSource"));
+            var key = LoadOrderEntry.BuildKey(id, source);
+            var wasNew = !dict.ContainsKey(key);
+
+            dict[key] = new LoadOrderEntry(id, name ?? id, source, true);
+            if (wasNew)
+            {
+                added++;
+            }
+        }
+
+        return added > 0;
+    }
+
+    private static bool TryCollectModsFromSettings(Dictionary<string, LoadOrderEntry> dict)
+    {
+        ReadSettings(out var orderedKeys, out var enabledByKey);
+        if (orderedKeys.Count == 0)
+        {
+            return false;
+        }
+
+        var added = 0;
+        foreach (var key in orderedKeys)
+        {
+            if (!TryParseEntryKey(key, out var id, out var source))
+            {
+                continue;
+            }
+
+            if (dict.ContainsKey(key))
+            {
+                continue;
+            }
+
+            dict[key] = new LoadOrderEntry(id, id, source, enabledByKey.GetValueOrDefault(key, true));
+            added++;
+        }
+
+        return added > 0;
+    }
+
+    private static bool TryParseEntryKey(string key, out string id, out int source)
+    {
+        id = string.Empty;
+        source = 0;
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        var pos = key.LastIndexOf("::", StringComparison.Ordinal);
+        if (pos <= 0 || pos >= key.Length - 2)
+        {
+            return false;
+        }
+
+        var idPart = key[..pos];
+        var sourcePart = key[(pos + 2)..];
+        if (string.IsNullOrWhiteSpace(idPart))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(sourcePart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSource))
+        {
+            return false;
+        }
+
+        id = idPart;
+        source = parsedSource;
+        return true;
     }
 
     private static ulong? TryExtractPathUserId(string path)
