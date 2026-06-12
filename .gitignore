@@ -1,5 +1,6 @@
 .godot/
 torelease/
+toRelease/
 bin/
 obj/
 .vs/

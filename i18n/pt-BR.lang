@@ -24,3 +24,20 @@ source_mods=local
 source_workshop=oficina
 source_unknown=desconhecido
 suffix_disabled= [desativado]
+
+# Added for manual alpha sort + clipboard import/export
+btn_sort_alpha=Sort A-Z
+btn_export_clipboard=Export Clipboard
+btn_import_clipboard=Import Clipboard
+status_sorted_alpha=Sorted by alphabet.
+status_nothing_to_sort=Nothing to sort.
+status_nothing_to_export=Nothing to export.
+status_exported_clipboard=Exported {0} entries to clipboard.
+status_export_failed=Export failed: {0}
+status_clipboard_empty=Clipboard is empty.
+status_import_invalid_format=Clipboard format is invalid.
+status_import_no_valid=No valid import entries found.
+status_import_no_match=No matching installed mods found (ignored: {0}).
+status_import_parse_failed=Import parse failed: {0}
+status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
+status_import_failed=Import failed: {0}
