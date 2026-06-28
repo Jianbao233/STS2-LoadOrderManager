@@ -25,6 +25,7 @@ internal sealed class LoadOrderEntry
     public string Name { get; }
     public int Source { get; }
     public bool IsEnabled { get; set; }
+    public List<string> Dependencies { get; } = new();
 
     public string SourceText => Source switch
     {
@@ -551,7 +552,23 @@ internal static class LoadOrderRuntime
             var key = LoadOrderEntry.BuildKey(id, source);
             var wasNew = !dict.ContainsKey(key);
 
-            dict[key] = new LoadOrderEntry(id, name ?? id, source, true);
+            var entry = new LoadOrderEntry(id, name ?? id, source, true);
+
+            // Read dependencies from manifest (for Smart Sort)
+            var depsObj = GetMemberValue(manifest, "dependencies");
+            if (depsObj is IEnumerable depsList)
+            {
+                foreach (var dep in depsList)
+                {
+                    var depId = AsString(GetMemberValue(dep, "id"));
+                    if (!string.IsNullOrWhiteSpace(depId))
+                    {
+                        entry.Dependencies.Add(depId);
+                    }
+                }
+            }
+
+            dict[key] = entry;
             if (wasNew)
             {
                 added++;

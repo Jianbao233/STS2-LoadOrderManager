@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Godot;
 
@@ -11,15 +12,29 @@ namespace LoadOrderManager;
 public partial class LoadOrderPanel : Control
 {
     private const string ClipboardFormatV1 = "load_order_manager_v1";
+    private const string ClipboardFormatV2 = "load_order_manager_v2";
     private static readonly Regex TokenSplitRegex = new(
         @"[\r\n,;|\t]+",
         RegexOptions.Compiled);
 
     private sealed class ClipboardPayload
     {
-        public string format { get; set; } = ClipboardFormatV1;
+        public string format { get; set; } = ClipboardFormatV2;
         public string exported_at_utc { get; set; } = string.Empty;
         public List<ClipboardEntry> entries { get; set; } = new();
+        public PresetExportData? presets { get; set; }
+    }
+
+    private sealed class PresetExportData
+    {
+        public string current_preset { get; set; } = string.Empty;
+        public List<PresetExportEntry> profiles { get; set; } = new();
+    }
+
+    private sealed class PresetExportEntry
+    {
+        public string name { get; set; } = string.Empty;
+        public List<string> disabled_mods { get; set; } = new();
     }
 
     private sealed class ClipboardEntry
@@ -28,6 +43,8 @@ public partial class LoadOrderPanel : Control
         public string id { get; set; } = string.Empty;
         public int? source { get; set; }
         public bool? is_enabled { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public bool? enabled { get; set; }
 
         public bool? ResolveEnabled()
@@ -44,6 +61,8 @@ public partial class LoadOrderPanel : Control
     private ItemList _list = null!;
     private Label _statusLabel = null!;
     private Label _warningLabel = null!;
+    private OptionButton _presetDropdown = null!;
+    private bool _suppressPresetEvent;
 
     public override void _Ready()
     {
@@ -68,6 +87,7 @@ public partial class LoadOrderPanel : Control
         Visible = true;
         DebugLog.Info("OpenPanel called.");
         RefreshFromRuntime();
+        RefreshPresetDropdown();
     }
 
     private void BuildUiIfNeeded()
@@ -146,6 +166,27 @@ public partial class LoadOrderPanel : Control
         };
         root.AddChild(_warningLabel);
 
+        // ── Preset bar ────────────────────────────────────
+        var presetBar = new HBoxContainer();
+        presetBar.AddThemeConstantOverride("separation", 6);
+        root.AddChild(presetBar);
+
+        var presetLabel = new Label
+        {
+            Text = I18n.T("preset_label"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        presetBar.AddChild(presetLabel);
+
+        _presetDropdown = new OptionButton();
+        _presetDropdown.ItemSelected += OnPresetSelected;
+        _presetDropdown.CustomMinimumSize = new Vector2(200, 0);
+        presetBar.AddChild(_presetDropdown);
+
+        presetBar.AddChild(MakeButton(I18n.T("btn_preset_new"), CreatePresetFromCurrent));
+        presetBar.AddChild(MakeButton(I18n.T("btn_preset_rename"), RenameCurrentPreset));
+        presetBar.AddChild(MakeButton(I18n.T("btn_preset_delete"), DeleteCurrentPreset));
+
         var body = new HBoxContainer();
         body.SizeFlagsVertical = SizeFlags.ExpandFill;
         body.AddThemeConstantOverride("separation", 10);
@@ -171,6 +212,8 @@ public partial class LoadOrderPanel : Control
         side.AddChild(MakeButton(I18n.T("btn_move_top"), MoveToTop));
         side.AddChild(MakeButton(I18n.T("btn_move_bottom"), MoveToBottom));
         side.AddChild(MakeButton(I18n.T("btn_sort_alpha"), SortByAlphabet));
+        side.AddChild(MakeButton(I18n.T("btn_sort_smart"), SmartSort));
+        side.AddChild(MakeButton(I18n.T("btn_toggle_enable"), ToggleSelectedEnabled));
         side.AddChild(MakeButton(I18n.T("btn_reload"), RefreshFromRuntime));
         side.AddChild(MakeButton(I18n.T("btn_export_clipboard"), ExportToClipboard));
         side.AddChild(MakeButton(I18n.T("btn_import_clipboard"), ImportFromClipboard));
@@ -227,6 +270,7 @@ public partial class LoadOrderPanel : Control
         SetStatus(I18n.Tf("status_loaded", _entries.Count));
         DebugLog.Info($"Loaded {_entries.Count} mods into panel.");
         RefreshOverwriteWarning();
+        RefreshPresetDropdown();
     }
 
     private void RefreshOverwriteWarning()
@@ -250,9 +294,14 @@ public partial class LoadOrderPanel : Control
         for (var i = 0; i < _entries.Count; i++)
         {
             var e = _entries[i];
-            var disabled = e.IsEnabled ? "" : I18n.T("suffix_disabled");
-            var text = $"{i + 1:00}. [{e.SourceText}] {e.Name} ({e.Id}){disabled}";
+            var mark = e.IsEnabled ? "  ✓" : "  ✗";
+            var text = $"{i + 1:00}. [{e.SourceText}] {e.Name} ({e.Id}){mark}";
             _list.AddItem(text);
+
+            if (!e.IsEnabled)
+            {
+                _list.SetItemCustomFgColor(i, new Color(0.55f, 0.55f, 0.55f));
+            }
         }
     }
 
@@ -340,6 +389,301 @@ public partial class LoadOrderPanel : Control
         DebugLog.Info($"Manual alphabetical sort completed. entries={_entries.Count}");
     }
 
+    // ── Smart Sort: topological (dependencies first) + name tiebreaker ──
+
+    // Keywords that identify a library/prerequisite mod.
+    // Matched against mod Id and Name (case-insensitive, whole-token).
+    private static readonly string[] LibKeywords =
+        { "lib", "base", "core", "framework", "common", "api", "helper", "toolkit" };
+
+    /// <summary>
+    /// Build a sort key that puts library-type mods before non-library mods,
+    /// then by name alphabetically within each group.
+    /// </summary>
+    private static string SortKeyFor(LoadOrderEntry e)
+    {
+        var isLib = IsLibraryMod(e.Id) || IsLibraryMod(e.Name);
+        return (isLib ? "0_" : "1_") + e.Name;
+    }
+
+    private static bool IsLibraryMod(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var lower = text.ToLowerInvariant();
+        foreach (var kw in LibKeywords)
+        {
+            // Match as a whole word/token, not a substring.
+            // e.g. "BaseLib" → tokens: "base", "lib" → match
+            // "Library" alone → match "lib" at start
+            if (lower == kw) return true;
+            if (lower.StartsWith(kw)) return true;
+            // CamelCase split: "BaseLib" → "base","lib"
+            for (var i = 1; i < lower.Length; i++)
+            {
+                if (char.IsUpper(text[i]))
+                {
+                    var token = lower[..i];
+                    if (token == kw) return true;
+                }
+            }
+            // Also check if the keyword appears as a suffix (e.g. "BaseLib" ends with "lib")
+            if (lower.EndsWith(kw, StringComparison.Ordinal)) return true;
+        }
+        return false;
+    }
+
+    private void SmartSort()
+    {
+        if (_entries.Count < 2)
+        {
+            SetStatus(I18n.T("status_nothing_to_sort"));
+            return;
+        }
+
+        var selected = GetSelectedIndex();
+        var selectedKey = selected >= 0 && selected < _entries.Count
+            ? _entries[selected].Key
+            : null;
+
+        // Build id → index lookup (case-insensitive)
+        var idToIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(_entries[i].Id))
+            {
+                idToIndex.TryAdd(_entries[i].Id, i);
+            }
+        }
+
+        // inDegree[i] = how many of entry[i]'s dependencies are also in our list
+        var inDegree = new int[_entries.Count];
+        var dependents = new List<List<int>>();
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            dependents.Add(new List<int>());
+        }
+
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            foreach (var depId in _entries[i].Dependencies)
+            {
+                if (idToIndex.TryGetValue(depId, out var depIdx))
+                {
+                    inDegree[i]++;
+                    dependents[depIdx].Add(i);
+                }
+            }
+        }
+
+        // Reverse inference: if mod X's id appears in any other mod's
+        // dependencies, inject a virtual edge so X is forced before that mod.
+        // This catches the common case where a Lib declares no dependencies
+        // itself, but is declared as a dependency by others.
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (inDegree[i] > 0) continue; // already has real deps, skip
+            var myId = _entries[i].Id ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(myId)) continue;
+
+            for (var j = 0; j < _entries.Count; j++)
+            {
+                if (i == j) continue;
+                foreach (var depId in _entries[j].Dependencies)
+                {
+                    if (string.Equals(depId, myId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // j depends on i → i must come before j
+                        inDegree[j]++;
+                        dependents[i].Add(j);
+                        break; // one virtual edge per (i, j) pair is enough
+                    }
+                }
+            }
+        }
+
+        // Kahn's algorithm: priority key = (isLib ? "0" : "1") + name
+        // so library-type mods sort before non-library mods within the same layer
+        var queue = new PriorityQueue<int, string>(StringComparer.CurrentCultureIgnoreCase);
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (inDegree[i] == 0)
+            {
+                queue.Enqueue(i, SortKeyFor(_entries[i]));
+            }
+        }
+
+        var sorted = new List<LoadOrderEntry>();
+        var sortedIndices = new HashSet<int>();
+
+        while (queue.Count > 0)
+        {
+            var i = queue.Dequeue();
+            sortedIndices.Add(i);
+            sorted.Add(_entries[i]);
+
+            foreach (var depIdx in dependents[i])
+            {
+                inDegree[depIdx]--;
+                if (inDegree[depIdx] == 0)
+                {
+                    queue.Enqueue(depIdx, SortKeyFor(_entries[depIdx]));
+                }
+            }
+        }
+
+        // Remaining entries have circular deps — append by name
+        var remaining = new List<LoadOrderEntry>();
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (!sortedIndices.Contains(i))
+            {
+                remaining.Add(_entries[i]);
+            }
+        }
+
+        remaining.Sort((a, b) =>
+            string.Compare(SortKeyFor(a), SortKeyFor(b), StringComparison.CurrentCultureIgnoreCase));
+        sorted.AddRange(remaining);
+
+        _entries.Clear();
+        _entries.AddRange(sorted);
+
+        RefreshListOnly();
+        if (!string.IsNullOrEmpty(selectedKey))
+        {
+            var newIndex = _entries.FindIndex(e =>
+                string.Equals(e.Key, selectedKey, StringComparison.Ordinal));
+            if (newIndex >= 0)
+            {
+                _list.Select(newIndex);
+            }
+        }
+
+        var circularCount = remaining.Count;
+        SetStatus(circularCount > 0
+            ? I18n.Tf("status_sorted_smart_circular", circularCount)
+            : I18n.T("status_sorted_smart"));
+        DebugLog.Info(
+            $"Smart sort completed. entries={_entries.Count}, circular={circularCount}");
+    }
+
+    // ── Enable / Disable toggle ──────────────────────────
+
+    private void ToggleSelectedEnabled()
+    {
+        var selected = GetSelectedIndex();
+        if (selected < 0) return;
+
+        var entry = _entries[selected];
+        entry.IsEnabled = !entry.IsEnabled;
+        RefreshListOnly();
+        _list.Select(selected);
+
+        var state = entry.IsEnabled ? "ON" : "OFF";
+        SetStatus(I18n.Tf("status_toggled", entry.Name, state));
+        DebugLog.Info($"Toggled {entry.Id} to {entry.IsEnabled}.");
+    }
+
+    // ── Preset management ─────────────────────────────────
+
+    private void RefreshPresetDropdown()
+    {
+        if (_presetDropdown == null) return;
+
+        _suppressPresetEvent = true;
+        var data = ModPresetStore.Load();
+        _presetDropdown.Clear();
+        for (var i = 0; i < data.Profiles.Count; i++)
+        {
+            _presetDropdown.AddItem(data.Profiles[i].Name, i);
+        }
+        _presetDropdown.Select(data.CurrentProfileIndex);
+        _suppressPresetEvent = false;
+    }
+
+    private void OnPresetSelected(long index)
+    {
+        if (_suppressPresetEvent) return;
+        if (index < 0 || index >= ModPresetStore.Load().Profiles.Count) return;
+
+        // Snapshot current state into old profile, then switch
+        ModPresetStore.SelectProfile((int)index, _entries);
+
+        // Apply new profile to entries
+        var preset = ModPresetStore.CurrentProfile;
+        ModPresetStore.ApplyPreset(preset, _entries);
+
+        RefreshListOnly();
+        SetStatus(I18n.Tf("status_preset_applied", preset.Name));
+        DebugLog.Info($"Preset switched to '{preset.Name}'.");
+    }
+
+    private void CreatePresetFromCurrent()
+    {
+        var data = ModPresetStore.Load();
+        var name = "Profile " + (data.Profiles.Count + 1);
+        ModPresetStore.CreatePreset(name, _entries);
+        RefreshPresetDropdown();
+        SetStatus(I18n.Tf("status_preset_created", name));
+        DebugLog.Info($"Created preset '{name}'.");
+    }
+
+    private void RenameCurrentPreset()
+    {
+        var dialog = new ConfirmationDialog
+        {
+            Title = I18n.T("preset_rename_title"),
+            DialogText = I18n.T("preset_rename_prompt")
+        };
+
+        var lineEdit = new LineEdit { Text = ModPresetStore.CurrentProfile.Name };
+        dialog.AddChild(lineEdit);
+
+        dialog.Confirmed += () =>
+        {
+            var newName = lineEdit.Text;
+            if (ModPresetStore.RenameCurrentPreset(newName))
+            {
+                RefreshPresetDropdown();
+                SetStatus(I18n.Tf("status_preset_renamed", newName.Trim()));
+                DebugLog.Info($"Preset renamed to '{newName.Trim()}'.");
+            }
+        };
+
+        AddChild(dialog);
+        dialog.PopupCentered();
+    }
+
+    private void DeleteCurrentPreset()
+    {
+        var data = ModPresetStore.Load();
+        if (data.Profiles.Count <= 1)
+        {
+            SetStatus(I18n.T("status_preset_cannot_delete_last"));
+            return;
+        }
+
+        var presetName = ModPresetStore.CurrentProfile.Name;
+        var dialog = new ConfirmationDialog
+        {
+            Title = I18n.T("preset_delete_title"),
+            DialogText = I18n.Tf("preset_delete_prompt", presetName)
+        };
+
+        dialog.Confirmed += () =>
+        {
+            if (ModPresetStore.DeleteCurrentPreset())
+            {
+                RefreshPresetDropdown();
+                SetStatus(I18n.Tf("status_preset_deleted", presetName));
+                DebugLog.Info($"Preset '{presetName}' deleted.");
+            }
+        };
+
+        AddChild(dialog);
+        dialog.PopupCentered();
+    }
+
     private void ExportToClipboard()
     {
         if (_entries.Count == 0)
@@ -350,6 +694,17 @@ public partial class LoadOrderPanel : Control
 
         try
         {
+            var presetData = ModPresetStore.Load();
+            var presetExport = new PresetExportData
+            {
+                current_preset = presetData.Profiles[presetData.CurrentProfileIndex].Name,
+                profiles = presetData.Profiles.Select(p => new PresetExportEntry
+                {
+                    name = p.Name,
+                    disabled_mods = p.DisabledMods.ToList()
+                }).ToList()
+            };
+
             var payload = new ClipboardPayload
             {
                 exported_at_utc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
@@ -359,7 +714,8 @@ public partial class LoadOrderPanel : Control
                     id = e.Id,
                     source = e.Source,
                     is_enabled = e.IsEnabled
-                }).ToList()
+                }).ToList(),
+                presets = presetExport
             };
 
             var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
