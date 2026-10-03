@@ -17,6 +17,18 @@ public partial class LoadOrderPanel : Control
         @"[\r\n,;|\t]+",
         RegexOptions.Compiled);
 
+    // ── Layout ────────────────────────────────────────────
+    private const float DesignMaxWidth = 940f;
+    private const float DesignMaxListHeight = 410f;
+    private const float MinListHeight = 120f;
+    private const float RootSeparation = 8f;
+
+    /// <summary>Forces the compact layout (used to reproduce small/mobile canvases on desktop).</summary>
+    private static readonly bool ForceCompact = ReadBoolEnv("LOADORDER_UI_COMPACT");
+
+    /// <summary>Optional simulated logical canvas, e.g. LOADORDER_UI_SIMULATE_H=654.</summary>
+    private static readonly Vector2? SimulatedViewport = ReadSimulatedViewport();
+
     private sealed class ClipboardPayload
     {
         public string format { get; set; } = ClipboardFormatV2;
@@ -35,6 +47,8 @@ public partial class LoadOrderPanel : Control
     {
         public string name { get; set; } = string.Empty;
         public List<string> disabled_mods { get; set; } = new();
+        public bool auto_enable_new_mods { get; set; }
+        public List<string> known_mods { get; set; } = new();
     }
 
     private sealed class ClipboardEntry
@@ -59,15 +73,35 @@ public partial class LoadOrderPanel : Control
     private bool _uiBuilt;
 
     private ItemList _list = null!;
+    private PanelContainer _dialog = null!;
+    private MarginContainer _margin = null!;
+    private VBoxContainer _root = null!;
+    private Label _title = null!;
+    private Label _subtitle = null!;
     private Label _statusLabel = null!;
     private Label _warningLabel = null!;
+    private HFlowContainer _presetBar = null!;
+    private HBoxContainer _footer = null!;
+    private ScrollContainer _sideScroll = null!;
+    private VBoxContainer _side = null!;
     private OptionButton _presetDropdown = null!;
+    private CheckBox _newModPolicyCheck = null!;
     private bool _suppressPresetEvent;
+
+    private Vector2 _layoutViewport = new(1920f, 1080f);
+    private bool _layoutCheckHooked;
+    private int _layoutCheckFramesPending;
 
     public override void _Ready()
     {
         BuildUiIfNeeded();
         Visible = false;
+
+        var viewport = GetViewport();
+        if (viewport != null)
+        {
+            viewport.SizeChanged += LayoutForViewport;
+        }
     }
 
     public override void _Input(InputEvent @event)
@@ -86,8 +120,9 @@ public partial class LoadOrderPanel : Control
         BuildUiIfNeeded();
         Visible = true;
         DebugLog.Info("OpenPanel called.");
+        LoadOrderRuntime.LogDiagnosticsOnce();
+        LayoutForViewport();
         RefreshFromRuntime();
-        RefreshPresetDropdown();
     }
 
     private void BuildUiIfNeeded()
@@ -117,43 +152,41 @@ public partial class LoadOrderPanel : Control
         backdrop.AnchorBottom = 1f;
         AddChild(backdrop);
 
-        var dialog = new PanelContainer();
-        dialog.AnchorLeft = 0.5f;
-        dialog.AnchorTop = 0.5f;
-        dialog.AnchorRight = 0.5f;
-        dialog.AnchorBottom = 0.5f;
-        dialog.OffsetLeft = -470f;
-        dialog.OffsetTop = -300f;
-        dialog.OffsetRight = 470f;
-        dialog.OffsetBottom = 300f;
-        dialog.MouseFilter = MouseFilterEnum.Stop;
-        backdrop.AddChild(dialog);
+        // Anchored to the top edge (not centred) and sized by LayoutForViewport(), so the
+        // footer can never be pushed off-screen when the logical canvas shrinks (mobile UI
+        // scaling) or the warning label appears.
+        _dialog = new PanelContainer
+        {
+            MouseFilter = MouseFilterEnum.Stop
+        };
+        backdrop.AddChild(_dialog);
 
-        var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_left", 14);
-        margin.AddThemeConstantOverride("margin_top", 12);
-        margin.AddThemeConstantOverride("margin_right", 14);
-        margin.AddThemeConstantOverride("margin_bottom", 12);
-        dialog.AddChild(margin);
+        _margin = new MarginContainer();
+        _margin.AddThemeConstantOverride("margin_left", 14);
+        _margin.AddThemeConstantOverride("margin_top", 12);
+        _margin.AddThemeConstantOverride("margin_right", 14);
+        _margin.AddThemeConstantOverride("margin_bottom", 12);
+        _dialog.AddChild(_margin);
 
-        var root = new VBoxContainer();
-        root.AddThemeConstantOverride("separation", 8);
-        margin.AddChild(root);
+        _root = new VBoxContainer();
+        _root.AddThemeConstantOverride("separation", (int)RootSeparation);
+        _margin.AddChild(_root);
 
-        var title = new Label
+        _title = new Label
         {
             Text = I18n.T("title"),
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        title.AddThemeFontSizeOverride("font_size", 22);
-        root.AddChild(title);
+        _title.AddThemeFontSizeOverride("font_size", 22);
+        _root.AddChild(_title);
 
-        var subtitle = new Label
+        _subtitle = new Label
         {
             Text = I18n.T("subtitle"),
-            HorizontalAlignment = HorizontalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart
         };
-        root.AddChild(subtitle);
+        _root.AddChild(_subtitle);
 
         _warningLabel = new Label
         {
@@ -162,68 +195,90 @@ public partial class LoadOrderPanel : Control
             Modulate = new Color(1f, 0.77f, 0.3f),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             HorizontalAlignment = HorizontalAlignment.Center,
-            SizeFlagsHorizontal = SizeFlags.ExpandFill
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            // Cap the height so the layout budget stays predictable; full text in the tooltip.
+            MaxLinesVisible = 2,
+            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis
         };
-        root.AddChild(_warningLabel);
+        _root.AddChild(_warningLabel);
 
         // ── Preset bar ────────────────────────────────────
-        var presetBar = new HBoxContainer();
-        presetBar.AddThemeConstantOverride("separation", 6);
-        root.AddChild(presetBar);
+        _presetBar = new HFlowContainer();
+        _presetBar.AddThemeConstantOverride("h_separation", 6);
+        _presetBar.AddThemeConstantOverride("v_separation", 4);
+        _root.AddChild(_presetBar);
 
         var presetLabel = new Label
         {
             Text = I18n.T("preset_label"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        presetBar.AddChild(presetLabel);
+        _presetBar.AddChild(presetLabel);
 
         _presetDropdown = new OptionButton();
         _presetDropdown.ItemSelected += OnPresetSelected;
         _presetDropdown.CustomMinimumSize = new Vector2(200, 0);
-        presetBar.AddChild(_presetDropdown);
+        _presetBar.AddChild(_presetDropdown);
 
-        presetBar.AddChild(MakeButton(I18n.T("btn_preset_new"), CreatePresetFromCurrent));
-        presetBar.AddChild(MakeButton(I18n.T("btn_preset_rename"), RenameCurrentPreset));
-        presetBar.AddChild(MakeButton(I18n.T("btn_preset_delete"), DeleteCurrentPreset));
+        _presetBar.AddChild(MakeButton(I18n.T("btn_preset_new"), CreatePresetFromCurrent));
+        _presetBar.AddChild(MakeButton(I18n.T("btn_preset_rename"), RenameCurrentPreset));
+        _presetBar.AddChild(MakeButton(I18n.T("btn_preset_delete"), DeleteCurrentPreset));
+
+        _newModPolicyCheck = new CheckBox
+        {
+            Text = I18n.T("policy_auto_enable"),
+            TooltipText = I18n.T("policy_auto_enable_tooltip"),
+            ButtonPressed = true
+        };
+        _newModPolicyCheck.Toggled += OnNewModPolicyToggled;
+        _presetBar.AddChild(_newModPolicyCheck);
 
         var body = new HBoxContainer();
         body.SizeFlagsVertical = SizeFlags.ExpandFill;
         body.AddThemeConstantOverride("separation", 10);
-        root.AddChild(body);
+        _root.AddChild(body);
 
         _list = new ItemList
         {
             SelectMode = ItemList.SelectModeEnum.Single,
             AllowReselect = true
         };
-        _list.CustomMinimumSize = new Vector2(720, 410);
         _list.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _list.SizeFlagsVertical = SizeFlags.ExpandFill;
         body.AddChild(_list);
 
-        var side = new VBoxContainer();
-        side.CustomMinimumSize = new Vector2(180, 300);
-        side.AddThemeConstantOverride("separation", 6);
-        body.AddChild(side);
+        // The action column scrolls on its own: on a short canvas it would otherwise
+        // force the whole dialog taller than the viewport.
+        _sideScroll = new ScrollContainer
+        {
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
+            SizeFlagsVertical = SizeFlags.ExpandFill
+        };
+        body.AddChild(_sideScroll);
 
-        side.AddChild(MakeButton(I18n.T("btn_move_up"), () => MoveSelected(-1)));
-        side.AddChild(MakeButton(I18n.T("btn_move_down"), () => MoveSelected(1)));
-        side.AddChild(MakeButton(I18n.T("btn_move_top"), MoveToTop));
-        side.AddChild(MakeButton(I18n.T("btn_move_bottom"), MoveToBottom));
-        side.AddChild(MakeButton(I18n.T("btn_sort_alpha"), SortByAlphabet));
-        side.AddChild(MakeButton(I18n.T("btn_sort_smart"), SmartSort));
-        side.AddChild(MakeButton(I18n.T("btn_toggle_enable"), ToggleSelectedEnabled));
-        side.AddChild(MakeButton(I18n.T("btn_reload"), RefreshFromRuntime));
-        side.AddChild(MakeButton(I18n.T("btn_export_clipboard"), ExportToClipboard));
-        side.AddChild(MakeButton(I18n.T("btn_import_clipboard"), ImportFromClipboard));
+        _side = new VBoxContainer();
+        _side.AddThemeConstantOverride("separation", 6);
+        _side.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+        _sideScroll.AddChild(_side);
 
-        var footer = new HBoxContainer();
-        footer.AddThemeConstantOverride("separation", 8);
-        root.AddChild(footer);
+        _side.AddChild(MakeButton(I18n.T("btn_move_up"), () => MoveSelected(-1)));
+        _side.AddChild(MakeButton(I18n.T("btn_move_down"), () => MoveSelected(1)));
+        _side.AddChild(MakeButton(I18n.T("btn_move_top"), MoveToTop));
+        _side.AddChild(MakeButton(I18n.T("btn_move_bottom"), MoveToBottom));
+        _side.AddChild(MakeButton(I18n.T("btn_sort_alpha"), SortByAlphabet));
+        _side.AddChild(MakeButton(I18n.T("btn_sort_smart"), SmartSort));
+        _side.AddChild(MakeButton(I18n.T("btn_toggle_enable"), ToggleSelectedEnabled));
+        _side.AddChild(MakeButton(I18n.T("btn_reload"), RefreshFromRuntime));
+        _side.AddChild(MakeButton(I18n.T("btn_export_clipboard"), ExportToClipboard));
+        _side.AddChild(MakeButton(I18n.T("btn_import_clipboard"), ImportFromClipboard));
 
-        footer.AddChild(MakeButton(I18n.T("btn_apply"), ApplyOrder));
-        footer.AddChild(MakeButton(I18n.T("btn_close"), () => Visible = false));
+        _footer = new HBoxContainer();
+        _footer.AddThemeConstantOverride("separation", 8);
+        _root.AddChild(_footer);
+
+        _footer.AddChild(MakeButton(I18n.T("btn_apply"), ApplyOrder));
+        _footer.AddChild(MakeButton(I18n.T("btn_close"), () => Visible = false));
 
         _statusLabel = new Label
         {
@@ -232,7 +287,9 @@ public partial class LoadOrderPanel : Control
             AutowrapMode = TextServer.AutowrapMode.WordSmart
         };
         _statusLabel.HorizontalAlignment = HorizontalAlignment.Right;
-        footer.AddChild(_statusLabel);
+        _footer.AddChild(_statusLabel);
+
+        LayoutForViewport();
     }
 
     private Button MakeButton(string text, Action onPressed)
@@ -245,6 +302,165 @@ public partial class LoadOrderPanel : Control
         button.Pressed += onPressed;
         return button;
     }
+
+    // ── Viewport adaptive layout ──────────────────────────
+
+    /// <summary>
+    /// Sizes the dialog against the *current* logical canvas and pins the footer inside it.
+    ///
+    /// Godot grows a Control to at least its combined minimum size while keeping the
+    /// position derived from anchors + offsets, so a fixed-size, centre-anchored dialog only
+    /// ever grows downwards - which is exactly how the Apply/Close buttons ended up below
+    /// the screen edge on mobile ("mobile UI + 110% zoom"). Now the dialog is anchored to
+    /// the top, its height is clamped to the viewport, and the list's minimum height is
+    /// reduced to whatever is actually left over.
+    /// </summary>
+    private void LayoutForViewport()
+    {
+        if (!_uiBuilt || _dialog == null) return;
+
+        var viewport = SimulatedViewport ?? GetViewportRect().Size;
+        _layoutViewport = viewport;
+
+        var compact = ForceCompact || viewport.Y < 720f || viewport.X < 1100f;
+
+        var marginX = compact ? 12f : 24f;
+        var marginTop = compact ? 12f : 48f;
+        var marginBottom = compact ? 12f : 48f;
+
+        var width = Mathf.Clamp(viewport.X - marginX * 2f, 640f, DesignMaxWidth);
+        var height = Mathf.Max(viewport.Y - marginTop - marginBottom, 260f);
+
+        _dialog.AnchorLeft = 0.5f;
+        _dialog.AnchorRight = 0.5f;
+        _dialog.AnchorTop = 0f;
+        _dialog.AnchorBottom = 0f;
+        _dialog.OffsetLeft = -width / 2f;
+        _dialog.OffsetRight = width / 2f;
+        _dialog.OffsetTop = marginTop;
+        _dialog.OffsetBottom = marginTop + height;
+
+        _subtitle.Visible = !compact;
+
+        var sideWidth = compact ? 150f : 180f;
+        var listMinHeight = Mathf.Clamp(height - FixedChromeMinHeight(), MinListHeight, DesignMaxListHeight);
+
+        _list.CustomMinimumSize = new Vector2(Mathf.Max(width - sideWidth - 40f, 320f), listMinHeight);
+        _sideScroll.CustomMinimumSize = new Vector2(sideWidth, Mathf.Min(300f, listMinHeight));
+
+        DebugLog.Info(
+            $"UI layout: viewport={viewport.X:0}x{viewport.Y:0}, compact={compact}, dialog={width:0}x{height:0}, top={marginTop:0}, listMinHeight={listMinHeight:0}");
+
+        // Verify on a later frame (containers resolve their sizes during idle), via a
+        // signal rather than CallDeferred: C# methods are not always reachable by name.
+        _layoutCheckFramesPending = 2;
+        EnsureLayoutCheckHook();
+    }
+
+    private void EnsureLayoutCheckHook()
+    {
+        var tree = GetTree();
+        if (tree == null || _layoutCheckHooked) return;
+        _layoutCheckHooked = true;
+        tree.ProcessFrame += OnProcessFrame;
+    }
+
+    private void OnProcessFrame()
+    {
+        if (_layoutCheckFramesPending <= 0) return;
+        _layoutCheckFramesPending--;
+        if (_layoutCheckFramesPending > 0) return;
+        LogLayoutCheck();
+    }
+
+    /// <summary>Height taken by everything except the list, so the list can absorb the rest.</summary>
+    private float FixedChromeMinHeight()
+    {
+        var sum = 0f;
+        var visible = 0;
+
+        void Add(Control control)
+        {
+            if (!control.Visible) return;
+            sum += control.GetCombinedMinimumSize().Y;
+            visible++;
+        }
+
+        Add(_title);
+        Add(_subtitle);
+        Add(_warningLabel);
+        Add(_presetBar);
+        Add(_footer);
+
+        visible++; // the body itself always participates in the separation count
+        if (visible > 1) sum += RootSeparation * (visible - 1);
+        sum += 24f; // MarginContainer top + bottom
+
+        return sum + 8f; // slack for rounding / hover style changes
+    }
+
+    /// <summary>
+    /// Deferred verification: logs the realised geometry and whether the footer is fully
+    /// inside the canvas. This is the machine-checkable acceptance evidence for the
+    /// mobile-layout fix (run with LOADORDER_UI_SIMULATE_H / LOADORDER_UI_COMPACT).
+    /// </summary>
+    private void LogLayoutCheck()
+    {
+        if (!IsInsideTree() || _dialog == null || _footer == null) return;
+
+        var viewport = _layoutViewport;
+        var footerEnd = _footer.GlobalPosition.Y + _footer.Size.Y;
+        var dialogEnd = _dialog.Position.Y + _dialog.Size.Y;
+        var footerInside = footerEnd <= viewport.Y + 0.5f && _footer.GlobalPosition.Y >= -0.5f;
+        var dialogInside = dialogEnd <= viewport.Y + 0.5f;
+
+        DebugLog.Info(
+            $"UI layout check: dialogPos=({_dialog.Position.X:0},{_dialog.Position.Y:0}) dialogSize={_dialog.Size.X:0}x{_dialog.Size.Y:0}, " +
+            $"footerEndY={footerEnd:0}, viewport={viewport.X:0}x{viewport.Y:0}, footerInside={footerInside}, dialogInside={dialogInside}" +
+            (footerInside && dialogInside ? string.Empty : "  <-- LAYOUT OVERFLOW"));
+    }
+
+    private static bool ReadBoolEnv(string name)
+    {
+        try
+        {
+            var value = System.Environment.GetEnvironmentVariable(name);
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            return value != "0" && !value.Equals("false", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static Vector2? ReadSimulatedViewport()
+    {
+        try
+        {
+            var rawHeight = System.Environment.GetEnvironmentVariable("LOADORDER_UI_SIMULATE_H");
+            if (string.IsNullOrWhiteSpace(rawHeight)) return null;
+            if (!float.TryParse(rawHeight, NumberStyles.Float, CultureInfo.InvariantCulture, out var height)) return null;
+            if (height <= 0f) return null;
+
+            var width = 1163f;
+            var rawWidth = System.Environment.GetEnvironmentVariable("LOADORDER_UI_SIMULATE_W");
+            if (!string.IsNullOrWhiteSpace(rawWidth) &&
+                float.TryParse(rawWidth, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedWidth) &&
+                parsedWidth > 0f)
+            {
+                width = parsedWidth;
+            }
+
+            return new Vector2(width, height);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // ── Data refresh ──────────────────────────────────────
 
     private void RefreshFromRuntime()
     {
@@ -260,17 +476,31 @@ public partial class LoadOrderPanel : Control
 
         _entries.Clear();
         _entries.AddRange(entries);
+
+        // Presets written by v0.3.0 and older only know DisabledMods; upgrade them before
+        // the new-mod policy runs so nothing the user already has changes state.
+        ModPresetStore.MigrateIfNeeded(_entries);
+
+        // Only mods this preset has never seen are governed by the policy; everything else
+        // keeps the state read from settings.save (so manual toggles in the official screen
+        // stay visible). Not persisted here - only Apply does that.
+        var newModCount = ModPresetStore.ApplyNewModPolicy(ModPresetStore.CurrentProfile, _entries);
+
         RefreshListOnly();
+        RefreshPresetDropdown();
+        RefreshPolicyCheckbox();
 
         if (_entries.Count > 0)
         {
             _list.Select(0);
         }
 
-        SetStatus(I18n.Tf("status_loaded", _entries.Count));
-        DebugLog.Info($"Loaded {_entries.Count} mods into panel.");
+        SetStatus(newModCount > 0
+            ? I18n.Tf("status_new_mods_seen", newModCount)
+            : I18n.Tf("status_loaded", _entries.Count));
+
+        DebugLog.Info($"Loaded {_entries.Count} mods into panel. newMods={newModCount}");
         RefreshOverwriteWarning();
-        RefreshPresetDropdown();
     }
 
     private void RefreshOverwriteWarning()
@@ -279,12 +509,18 @@ public partial class LoadOrderPanel : Control
             !string.IsNullOrWhiteSpace(warningText))
         {
             _warningLabel.Text = warningText;
+            _warningLabel.TooltipText = warningText;
             _warningLabel.Visible = true;
-            return;
+        }
+        else
+        {
+            _warningLabel.Text = string.Empty;
+            _warningLabel.TooltipText = string.Empty;
+            _warningLabel.Visible = false;
         }
 
-        _warningLabel.Text = string.Empty;
-        _warningLabel.Visible = false;
+        // Visibility changes the height budget, so re-run the layout.
+        LayoutForViewport();
     }
 
     private void RefreshListOnly()
@@ -295,7 +531,8 @@ public partial class LoadOrderPanel : Control
         {
             var e = _entries[i];
             var mark = e.IsEnabled ? "  ✓" : "  ✗";
-            var text = $"{i + 1:00}. [{e.SourceText}] {e.Name} ({e.Id}){mark}";
+            var tag = e.IsNew ? $"  · {I18n.T("tag_new")}" : string.Empty;
+            var text = $"{i + 1:00}. [{e.SourceText}] {e.Name} ({e.Id}){mark}{tag}";
             _list.AddItem(text);
 
             if (!e.IsEnabled)
@@ -576,6 +813,8 @@ public partial class LoadOrderPanel : Control
 
         var entry = _entries[selected];
         entry.IsEnabled = !entry.IsEnabled;
+        // A manual decision wins over the preset's new-mod policy.
+        entry.IsNew = false;
         RefreshListOnly();
         _list.Select(selected);
 
@@ -601,6 +840,31 @@ public partial class LoadOrderPanel : Control
         _suppressPresetEvent = false;
     }
 
+    private void RefreshPolicyCheckbox()
+    {
+        if (_newModPolicyCheck == null) return;
+
+        var preset = ModPresetStore.CurrentProfile;
+        _newModPolicyCheck.SetPressedNoSignal(preset.AutoEnableNewMods);
+        _newModPolicyCheck.TooltipText = I18n.T("policy_auto_enable_tooltip");
+    }
+
+    private void OnNewModPolicyToggled(bool pressed)
+    {
+        var preset = ModPresetStore.CurrentProfile;
+        if (!ModPresetStore.SetAutoEnableNewMods(pressed))
+        {
+            SetStatus(I18n.T("status_save_failed"));
+            return;
+        }
+
+        var newModCount = ModPresetStore.ApplyNewModPolicy(ModPresetStore.CurrentProfile, _entries);
+        RefreshListOnly();
+        SetStatus(I18n.Tf("status_policy_changed", preset.Name, I18n.T(pressed ? "policy_on" : "policy_off")));
+        DebugLog.Info(
+            $"Preset '{preset.Name}' AutoEnableNewMods={pressed}; newMods={newModCount}");
+    }
+
     private void OnPresetSelected(long index)
     {
         if (_suppressPresetEvent) return;
@@ -609,13 +873,21 @@ public partial class LoadOrderPanel : Control
         // Snapshot current state into old profile, then switch
         ModPresetStore.SelectProfile((int)index, _entries);
 
-        // Apply new profile to entries
+        // Apply new profile to entries (including its new-mod policy)
         var preset = ModPresetStore.CurrentProfile;
-        ModPresetStore.ApplyPreset(preset, _entries);
+        var newModCount = ModPresetStore.ApplyPreset(preset, _entries);
 
         RefreshListOnly();
-        SetStatus(I18n.Tf("status_preset_applied", preset.Name));
-        DebugLog.Info($"Preset switched to '{preset.Name}'.");
+        RefreshPolicyCheckbox();
+
+        var status = I18n.Tf("status_preset_applied", preset.Name);
+        if (newModCount > 0)
+        {
+            status = $"{status} {I18n.Tf("status_new_mods_seen", newModCount)}";
+        }
+        SetStatus(status);
+        DebugLog.Info(
+            $"Preset switched to '{preset.Name}'. autoEnableNewMods={preset.AutoEnableNewMods}, newMods={newModCount}");
     }
 
     private void CreatePresetFromCurrent()
@@ -624,6 +896,7 @@ public partial class LoadOrderPanel : Control
         var name = "Profile " + (data.Profiles.Count + 1);
         ModPresetStore.CreatePreset(name, _entries);
         RefreshPresetDropdown();
+        RefreshPolicyCheckbox();
         SetStatus(I18n.Tf("status_preset_created", name));
         DebugLog.Info($"Created preset '{name}'.");
     }
@@ -638,6 +911,7 @@ public partial class LoadOrderPanel : Control
 
         var lineEdit = new LineEdit { Text = ModPresetStore.CurrentProfile.Name };
         dialog.AddChild(lineEdit);
+        dialog.RegisterTextEnter(lineEdit);
 
         dialog.Confirmed += () =>
         {
@@ -645,6 +919,7 @@ public partial class LoadOrderPanel : Control
             if (ModPresetStore.RenameCurrentPreset(newName))
             {
                 RefreshPresetDropdown();
+                RefreshPolicyCheckbox();
                 SetStatus(I18n.Tf("status_preset_renamed", newName.Trim()));
                 DebugLog.Info($"Preset renamed to '{newName.Trim()}'.");
             }
@@ -675,6 +950,7 @@ public partial class LoadOrderPanel : Control
             if (ModPresetStore.DeleteCurrentPreset())
             {
                 RefreshPresetDropdown();
+                RefreshPolicyCheckbox();
                 SetStatus(I18n.Tf("status_preset_deleted", presetName));
                 DebugLog.Info($"Preset '{presetName}' deleted.");
             }
@@ -701,7 +977,9 @@ public partial class LoadOrderPanel : Control
                 profiles = presetData.Profiles.Select(p => new PresetExportEntry
                 {
                     name = p.Name,
-                    disabled_mods = p.DisabledMods.ToList()
+                    disabled_mods = p.DisabledMods.ToList(),
+                    auto_enable_new_mods = p.AutoEnableNewMods,
+                    known_mods = p.KnownMods.ToList()
                 }).ToList()
             };
 
@@ -777,6 +1055,7 @@ public partial class LoadOrderPanel : Control
                 if (importedEnabled.HasValue)
                 {
                     target.IsEnabled = importedEnabled.Value;
+                    target.IsNew = false;
                 }
 
                 matchedOrder.Add(target);
@@ -1093,8 +1372,12 @@ public partial class LoadOrderPanel : Control
             return;
         }
 
+        // What we just wrote becomes this preset's definition: every entry is now "known",
+        // so the new-mod policy will not touch it again.
+        ModPresetStore.CommitCurrentProfile(_entries);
+
         SetStatus(I18n.T("status_saved"));
-        DebugLog.Info("Apply succeeded. Restart required for effect.");
+        DebugLog.Info($"Apply succeeded. Preset '{ModPresetStore.CurrentProfile.Name}' committed. Restart required for effect.");
         RefreshOverwriteWarning();
     }
 

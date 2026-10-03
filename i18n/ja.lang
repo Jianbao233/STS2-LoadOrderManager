@@ -23,7 +23,6 @@ warning_overwritten=警告: 現在のMod順が前回適用スナップショッ�
 source_mods=ローカル
 source_workshop=ワークショップ
 source_unknown=不明
-suffix_disabled= [無効]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=新しいModを自動で有効化
+policy_auto_enable_tooltip=オン：このプリセット保存後に購読したModは、ここで既定で有効になります。オフ：既定で無効になり、手動で有効にします。
+policy_on=オン
+policy_off=オフ
+status_new_mods_seen=新しいModを {0} 件検出し、このプリセットの新規Modポリシーを適用しました。「適用」で保存してください。
+status_policy_changed=プリセット「{0}」：新しいModの自動有効化 = {1}
+tag_new=新規

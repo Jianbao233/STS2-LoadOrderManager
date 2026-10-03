@@ -23,7 +23,6 @@ warning_overwritten=Aviso: el orden actual de mods difiere del ultimo snapshot a
 source_mods=local
 source_workshop=workshop
 source_unknown=desconocido
-suffix_disabled= [desactivado]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=Activar automaticamente los mods nuevos
+policy_auto_enable_tooltip=Activado: los mods que suscribas despues de guardar este perfil se activan aqui por defecto. Desactivado: quedan desactivados y hay que activarlos a mano.
+policy_on=activado
+policy_off=desactivado
+status_new_mods_seen={0} mod(s) nuevo(s) tratados segun la politica de mods nuevos de este perfil. Pulsa Aplicar para guardar.
+status_policy_changed=Perfil '{0}': activar automaticamente mods nuevos = {1}
+tag_new=NUEVO

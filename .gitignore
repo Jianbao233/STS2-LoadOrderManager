@@ -8,3 +8,5 @@ obj/
 *.user
 *.suo
 *.tmp
+build/
+mod-uploader.log

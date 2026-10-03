@@ -84,6 +84,19 @@ internal static class I18n
             if (!string.IsNullOrWhiteSpace(asmDir))
             {
                 candidates.Add(Path.Combine(asmDir, "i18n"));
+
+                // Version-bundle layout: the implementation DLL lives in
+                // <mod root>/bin/<version>/, while i18n/ stays at the mod root.
+                // Walk up a couple of levels so workshop installs (where the
+                // exe-relative fallbacks below do not exist) still find the tables.
+                var dir = asmDir;
+                for (var i = 0; i < 2; i++)
+                {
+                    var parent = Path.GetDirectoryName(dir);
+                    if (string.IsNullOrWhiteSpace(parent)) break;
+                    dir = parent;
+                    candidates.Add(Path.Combine(dir, "i18n"));
+                }
             }
         }
         catch

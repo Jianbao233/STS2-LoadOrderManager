@@ -38,7 +38,6 @@ warning_overwritten=Warning: Current mod order differs from your last apply snap
 source_mods=mods
 source_workshop=workshop
 source_unknown=unknown
-suffix_disabled= [disabled]
 preset_label=Preset:
 btn_preset_new=New
 btn_preset_rename=Rename
@@ -57,3 +56,12 @@ preset_rename_title=Rename Preset
 preset_rename_prompt=Enter new name:
 preset_delete_title=Delete Preset
 preset_delete_prompt=Delete preset '{0}'?
+
+# New-mod policy (v0.4.0): mods subscribed after a preset was saved follow this flag.
+policy_auto_enable=Auto-enable new mods
+policy_auto_enable_tooltip=On: mods you subscribe after this preset was saved start enabled here. Off: they start disabled and you enable them by hand.
+policy_on=on
+policy_off=off
+status_new_mods_seen={0} new mod(s) handled by this preset's new-mod policy. Click Apply to save.
+status_policy_changed=Preset '{0}': auto-enable new mods = {1}
+tag_new=NEW

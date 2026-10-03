@@ -8,12 +8,19 @@ using Godot;
 namespace LoadOrderManager;
 
 /// <summary>
-/// A named preset that stores which mods are disabled.
+/// A named preset.
+///
+/// <see cref="DisabledMods"/> + <see cref="KnownMods"/> together describe the preset:
+/// a mod the preset has seen (<see cref="KnownMods"/>) is enabled unless it is listed
+/// in <see cref="DisabledMods"/>; a mod the preset has never seen (subscribed after the
+/// preset was created/last committed) follows <see cref="AutoEnableNewMods"/>.
 /// </summary>
 internal sealed class ModPreset
 {
     public string Name { get; set; } = "Default";
     public HashSet<string> DisabledMods { get; set; } = new();
+    public HashSet<string> KnownMods { get; set; } = new();
+    public bool AutoEnableNewMods { get; set; } = true;
 }
 
 /// <summary>
@@ -22,6 +29,7 @@ internal sealed class ModPreset
 /// </summary>
 internal sealed class PresetSaveData
 {
+    public int SchemaVersion { get; set; } = ModPresetStore.CurrentSchemaVersion;
     public List<ModPreset> Profiles { get; set; } = new();
     public int CurrentProfileIndex { get; set; } = 0;
 }
@@ -32,6 +40,13 @@ internal sealed class PresetSaveData
 /// </summary>
 internal static class ModPresetStore
 {
+    /// <summary>
+    /// 1 = only DisabledMods (v0.3.0 and older).
+    /// 2 = adds KnownMods + AutoEnableNewMods (newly subscribed mods only auto-enable
+    ///     in the preset that opts in, "Default" by default).
+    /// </summary>
+    public const int CurrentSchemaVersion = 2;
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private static PresetSaveData? _cache;
 
@@ -105,35 +120,123 @@ internal static class ModPresetStore
         }
     }
 
+    // ── Migration ─────────────────────────────────────────
+
+    /// <summary>
+    /// Upgrades schema 1 (DisabledMods only) to schema 2.
+    ///
+    /// Every currently installed mod is recorded as "already seen", so nothing the user
+    /// has today changes state; only mods subscribed *after* this migration count as new.
+    /// Only the first preset auto-enables new mods, matching the "Default group only"
+    /// behaviour requested by users.
+    /// </summary>
+    public static void MigrateIfNeeded(IReadOnlyList<LoadOrderEntry> entries)
+    {
+        var data = Load();
+        if (data.SchemaVersion >= CurrentSchemaVersion) return;
+
+        var installedIds = entries
+            .Where(e => !string.IsNullOrWhiteSpace(e.Id))
+            .Select(e => e.Id);
+
+        for (var i = 0; i < data.Profiles.Count; i++)
+        {
+            var profile = data.Profiles[i];
+            foreach (var id in installedIds)
+            {
+                profile.KnownMods.Add(id);
+            }
+
+            profile.AutoEnableNewMods = i == 0;
+        }
+
+        data.SchemaVersion = CurrentSchemaVersion;
+        Save();
+        DebugLog.Info(
+            $"Presets migrated to schema {CurrentSchemaVersion}. profiles={data.Profiles.Count}, installed={installedIds.Count()}");
+    }
+
     // ── Snapshot & Apply ──────────────────────────────────
 
     /// <summary>
-    /// Snapshot current is_enabled states into the current profile.
-    /// Disabled mods = those with IsEnabled == false (keyed by mod Id).
+    /// Snapshot the current state into the current profile: every entry becomes "known"
+    /// and the disabled ones are recorded explicitly.
     /// </summary>
-    public static void SnapshotCurrent(IReadOnlyList<LoadOrderEntry> entries)
+    public static void CommitCurrentProfile(IReadOnlyList<LoadOrderEntry> entries)
     {
         var profile = CurrentProfile;
         profile.DisabledMods.Clear();
+        profile.KnownMods.Clear();
+
         foreach (var e in entries)
         {
-            if (!e.IsEnabled && !string.IsNullOrWhiteSpace(e.Id))
+            if (string.IsNullOrWhiteSpace(e.Id)) continue;
+
+            profile.KnownMods.Add(e.Id);
+            if (!e.IsEnabled)
             {
                 profile.DisabledMods.Add(e.Id);
             }
         }
+
         Save();
     }
 
     /// <summary>
-    /// Apply a preset's disabled set to the entries in-place.
+    /// Applies the preset to the entries in-place, including the new-mod policy.
+    /// Returns how many entries were governed by the new-mod policy (i.e. unknown to
+    /// this preset).
     /// </summary>
-    public static void ApplyPreset(ModPreset preset, List<LoadOrderEntry> entries)
+    public static int ApplyPreset(ModPreset preset, List<LoadOrderEntry> entries)
     {
+        var newMods = 0;
+
         foreach (var e in entries)
         {
+            if (string.IsNullOrWhiteSpace(e.Id) || !preset.KnownMods.Contains(e.Id))
+            {
+                e.IsEnabled = preset.AutoEnableNewMods;
+                e.IsNew = true;
+                newMods++;
+                continue;
+            }
+
             e.IsEnabled = !preset.DisabledMods.Contains(e.Id);
+            e.IsNew = false;
         }
+
+        return newMods;
+    }
+
+    /// <summary>
+    /// Applies the new-mod policy only, leaving mods this preset already knows untouched
+    /// (so manual toggles made in the official mod screen stay visible). Used when the
+    /// panel is opened or the policy checkbox is flipped, and never writes to disk.
+    /// </summary>
+    public static int ApplyNewModPolicy(ModPreset preset, List<LoadOrderEntry> entries)
+    {
+        var newMods = 0;
+
+        foreach (var e in entries)
+        {
+            if (string.IsNullOrWhiteSpace(e.Id) || preset.KnownMods.Contains(e.Id))
+            {
+                e.IsNew = false;
+                continue;
+            }
+
+            e.IsEnabled = preset.AutoEnableNewMods;
+            e.IsNew = true;
+            newMods++;
+        }
+
+        return newMods;
+    }
+
+    /// <summary>Pure decision helper (kept free of Godot types so it stays testable).</summary>
+    public static bool DecideEnabled(bool isKnown, bool isDisabled, bool autoEnableNewMods)
+    {
+        return isKnown ? !isDisabled : autoEnableNewMods;
     }
 
     // ── CRUD ─────────────────────────────────────────────
@@ -144,15 +247,29 @@ internal static class ModPresetStore
         var preset = new ModPreset
         {
             Name = name,
+            KnownMods = entries
+                .Where(e => !string.IsNullOrWhiteSpace(e.Id))
+                .Select(e => e.Id)
+                .ToHashSet(),
             DisabledMods = entries
                 .Where(e => !e.IsEnabled && !string.IsNullOrWhiteSpace(e.Id))
                 .Select(e => e.Id)
-                .ToHashSet()
+                .ToHashSet(),
+            // A preset created now knows every installed mod, so the policy only applies
+            // to mods subscribed later. Default to "manual", which is what users asked for.
+            AutoEnableNewMods = false
         };
         data.Profiles.Add(preset);
         data.CurrentProfileIndex = data.Profiles.Count - 1;
         Save();
         return preset;
+    }
+
+    public static bool SetAutoEnableNewMods(bool value)
+    {
+        var data = Load();
+        data.Profiles[data.CurrentProfileIndex].AutoEnableNewMods = value;
+        return Save();
     }
 
     public static bool DeleteCurrentPreset()
@@ -185,7 +302,7 @@ internal static class ModPresetStore
     public static void SelectProfile(int index, IReadOnlyList<LoadOrderEntry> entries)
     {
         var data = Load();
-        SnapshotCurrent(entries);
+        CommitCurrentProfile(entries);
         data.CurrentProfileIndex = index;
         NormalizeIndex(data);
         Save();
@@ -197,7 +314,8 @@ internal static class ModPresetStore
     {
         return new PresetSaveData
         {
-            Profiles = new List<ModPreset> { new() { Name = "Default" } },
+            SchemaVersion = CurrentSchemaVersion,
+            Profiles = new List<ModPreset> { new() { Name = "Default", AutoEnableNewMods = true } },
             CurrentProfileIndex = 0
         };
     }
@@ -207,7 +325,7 @@ internal static class ModPresetStore
         if (data == null) return;
         if (data.Profiles.Count == 0)
         {
-            data.Profiles.Add(new ModPreset { Name = "Default" });
+            data.Profiles.Add(new ModPreset { Name = "Default", AutoEnableNewMods = true });
         }
         if (data.CurrentProfileIndex < 0) data.CurrentProfileIndex = 0;
         if (data.CurrentProfileIndex >= data.Profiles.Count)

@@ -23,7 +23,6 @@ warning_overwritten=Uyari: guncel mod sirasi son uygulama anlik goruntusunden ({
 source_mods=yerel
 source_workshop=atolye
 source_unknown=bilinmiyor
-suffix_disabled= [devre disi]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=Yeni modlari otomatik etkinlestir
+policy_auto_enable_tooltip=Acik: bu profili kaydettikten sonra abone oldugunuz modlar burada varsayilan olarak etkindir. Kapali: devre disi baslar ve elle etkinlestirmeniz gerekir.
+policy_on=acik
+policy_off=kapali
+status_new_mods_seen={0} yeni mod bu profilin yeni mod kuralina gore islendi. Kaydetmek icin Uygula'ya basin.
+status_policy_changed=Profil '{0}': yeni modlari otomatik etkinlestir = {1}
+tag_new=YENI

@@ -25,6 +25,13 @@ internal sealed class LoadOrderEntry
     public string Name { get; }
     public int Source { get; }
     public bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// True while this mod is unknown to the current preset (subscribed after the preset
+    /// was created/committed). Governed by the preset's AutoEnableNewMods policy.
+    /// </summary>
+    public bool IsNew { get; set; }
+
     public List<string> Dependencies { get; } = new();
 
     public string SourceText => Source switch
@@ -56,8 +63,18 @@ internal static class LoadOrderRuntime
         "[^0-9A-Za-z_-]",
         RegexOptions.Compiled);
 
-    public static void LogDiagnosticsOnStartup()
+    private static bool _diagnosticsLogged;
+
+    /// <summary>
+    /// Drift diagnostics. Must run while the panel is open: at mod-initialization time
+    /// SaveManager.SettingsSave is not populated yet, so the settings list always reads
+    /// back empty and the check would be meaningless.
+    /// </summary>
+    public static void LogDiagnosticsOnce()
     {
+        if (_diagnosticsLogged) return;
+        _diagnosticsLogged = true;
+
         try
         {
             if (!TryResolveSaveContext(out var context, out var contextError))
@@ -102,7 +119,7 @@ internal static class LoadOrderRuntime
         }
         catch (Exception ex)
         {
-            DebugLog.Error("LogDiagnosticsOnStartup failed.", ex);
+            DebugLog.Error("LogDiagnosticsOnce failed.", ex);
         }
     }
 
@@ -164,7 +181,7 @@ internal static class LoadOrderRuntime
             var loadedModsByKey = ReadLoadedMods();
             if (loadedModsByKey.Count == 0)
             {
-                error = "No mods found in ModManager.AllMods.";
+                error = "No mods found in ModManager.Mods.";
                 DebugLog.Warn(error);
                 return false;
             }
@@ -322,21 +339,17 @@ internal static class LoadOrderRuntime
             return dict;
         }
 
-        if (TryCollectModsFromMember(modManagerType, "AllMods", dict))
+        // ModManager.Mods is the public accessor and exists in every supported game
+        // version (v0.107.1 .. v0.111.0). _mods is only a safety net.
+        if (TryCollectModsFromMember(modManagerType, "Mods", dict))
         {
-            DebugLog.Info($"ReadLoadedMods: collected {dict.Count} entries from ModManager.AllMods.");
+            DebugLog.Info($"ReadLoadedMods: collected {dict.Count} entries from ModManager.Mods.");
             return dict;
         }
 
         if (TryCollectModsFromMember(modManagerType, "_mods", dict))
         {
-            DebugLog.Warn($"ReadLoadedMods: AllMods empty, fallback to ModManager._mods ({dict.Count}).");
-            return dict;
-        }
-
-        if (TryCollectModsFromMember(modManagerType, "LoadedMods", dict))
-        {
-            DebugLog.Warn($"ReadLoadedMods: AllMods/_mods empty, fallback to ModManager.LoadedMods ({dict.Count}).");
+            DebugLog.Warn($"ReadLoadedMods: Mods empty, fallback to ModManager._mods ({dict.Count}).");
             return dict;
         }
 

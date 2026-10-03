@@ -23,7 +23,6 @@ warning_overwritten=Предупреждение: текущий порядок 
 source_mods=локальные
 source_workshop=мастерская
 source_unknown=неизвестно
-suffix_disabled= [отключен]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=Автоматически включать новые моды
+policy_auto_enable_tooltip=Включено: моды, на которые вы подпишетесь после сохранения этого профиля, будут здесь включены по умолчанию. Выключено: они выключены, включайте вручную.
+policy_on=вкл
+policy_off=выкл
+status_new_mods_seen=Обнаружено новых модов: {0}. Применена политика новых модов этого профиля. Нажмите «Применить», чтобы сохранить.
+status_policy_changed=Профиль «{0}»: авто-включение новых модов = {1}
+tag_new=НОВЫЙ

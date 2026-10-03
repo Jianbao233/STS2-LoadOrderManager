@@ -1,16 +1,41 @@
 <Project Sdk="Godot.NET.Sdk/4.5.1">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <Nullable>enable</Nullable>
     <NoWarn>CA2255</NoWarn>
     <RootNamespace>LoadOrderManager</RootNamespace>
-    <AssemblyName>LoadOrderManager</AssemblyName>
-    <Version>0.3.0</Version>
-    <FileVersion>0.3.0</FileVersion>
-    <AssemblyVersion>0.3.0</AssemblyVersion>
+    <!--
+      版本分发：本工程产出「实现」DLL（LoadOrderManager.Impl.dll），不产出根目录的
+      LoadOrderManager.dll —— 后者由 ModVersionLoader 启动器占据（见 build.ps1）。
+      装配件名加 .Impl 后缀是为了与启动器区分，避免同名装配件冲突。
+      实现里不再使用 [ModuleInitializer]，入口由启动器反射调用 Initialize()。
+    -->
+    <AssemblyName>LoadOrderManager.Impl</AssemblyName>
+    <Version>0.4.0</Version>
+    <FileVersion>0.4.0</FileVersion>
+    <AssemblyVersion>0.4.0</AssemblyVersion>
+    <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">F:\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64</Sts2DataDir>
   </PropertyGroup>
+
+  <!--
+    本实现刻意不引用 sts2.dll：所有游戏侧 API 都通过 Harmony 的 AccessTools 按名字反射，
+    因此一份二进制即可在正式版(v0.107.1)与 public-beta(v0.111.0) 上通用
+    （已逐项核验反射目标在两个版本都存在）。只有 GodotSharp 与 Harmony 需要编译期引用。
+  -->
   <ItemGroup>
-    <PackageReference Include="Lib.Harmony" Version="2.3.3" />
+    <Reference Include="0Harmony">
+      <HintPath>$(Sts2DataDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(Sts2DataDir)\GodotSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
+
+  <Target Name="ValidateSts2DataDir" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(Sts2DataDir)\GodotSharp.dll')"
+           Text="Game assemblies not found under Sts2DataDir='$(Sts2DataDir)'. Pass /p:Sts2DataDir=&lt;path to data_sts2_windows_x86_64&gt;." />
+  </Target>
 </Project>

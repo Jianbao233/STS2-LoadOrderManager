@@ -38,4 +38,12 @@ warning_overwritten=警告：目前模組順序與上次套用快照（{0}）不
 source_mods=本機
 source_workshop=工作坊
 source_unknown=未知
-suffix_disabled= [已停用]
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=新模組自動啟用
+policy_auto_enable_tooltip=開啟：本預設儲存之後你新訂閱的模組，在此預設中預設啟用。關閉：預設停用，需要你手動開啟。
+policy_on=開
+policy_off=關
+status_new_mods_seen=發現 {0} 個新模組，已按本預設的新模組策略處理。點擊「套用」儲存。
+status_policy_changed=預設「{0}」：新模組自動啟用 = {1}
+tag_new=新

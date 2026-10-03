@@ -23,7 +23,6 @@ warning_overwritten=Warnung: Die aktuelle Mod-Reihenfolge weicht vom letzten App
 source_mods=Lokal
 source_workshop=Workshop
 source_unknown=Unbekannt
-suffix_disabled= [deaktiviert]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=Neue Mods automatisch aktivieren
+policy_auto_enable_tooltip=An: Mods, die du nach dem Speichern dieses Profils abonnierst, sind hier standardmaessig aktiv. Aus: sie sind deaktiviert und muessen manuell aktiviert werden.
+policy_on=an
+policy_off=aus
+status_new_mods_seen={0} neue Mod(s) gemaess der Neumod-Regel dieses Profils behandelt. Zum Speichern auf Anwenden klicken.
+status_policy_changed=Profil '{0}': neue Mods automatisch aktivieren = {1}
+tag_new=NEU

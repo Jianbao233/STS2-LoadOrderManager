@@ -23,7 +23,6 @@ warning_overwritten=Ostrzezenie: biezaca kolejnosc modow rozni sie od ostatniej 
 source_mods=lokalne
 source_workshop=warsztat
 source_unknown=nieznane
-suffix_disabled= [wylaczony]
 
 # Added for manual alpha sort + clipboard import/export
 btn_sort_alpha=Sort A-Z
@@ -41,3 +40,12 @@ status_import_no_match=No matching installed mods found (ignored: {0}).
 status_import_parse_failed=Import parse failed: {0}
 status_imported_clipboard=Imported {0} entries (ignored missing: {1}, duplicates: {2}). Click Apply to save.
 status_import_failed=Import failed: {0}
+
+# New-mod policy (v0.4.0)
+policy_auto_enable=Automatycznie wlaczaj nowe mody
+policy_auto_enable_tooltip=Wlaczone: mody subskrybowane po zapisaniu tego profilu sa tu domyslnie wlaczone. Wylaczone: sa domyslnie wylaczone i trzeba je wlaczyc recznie.
+policy_on=wlaczone
+policy_off=wylaczone
+status_new_mods_seen=Wykryto nowe mody: {0}. Zastosowano regule nowych modow tego profilu. Kliknij Zastosuj, aby zapisac.
+status_policy_changed=Profil '{0}': automatyczne wlaczanie nowych modow = {1}
+tag_new=NOWY
