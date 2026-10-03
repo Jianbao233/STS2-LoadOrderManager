@@ -50,6 +50,13 @@ internal static class ModPresetStore
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private static PresetSaveData? _cache;
 
+    /// <summary>
+    /// True while the store has never been written to disk (first run, or the file was
+    /// unreadable). Treated like a legacy file: everything installed right now counts as
+    /// already seen, so a fresh install does not label every mod as NEW.
+    /// </summary>
+    private static bool _freshStore;
+
     private static string StorePath
     {
         get
@@ -78,12 +85,14 @@ internal static class ModPresetStore
             else
             {
                 _cache = CreateDefault();
+                _freshStore = true;
             }
         }
         catch (Exception ex)
         {
             DebugLog.Error("ModPresetStore.Load failed.", ex);
             _cache = CreateDefault();
+            _freshStore = true;
         }
 
         NormalizeIndex(_cache);
@@ -133,27 +142,35 @@ internal static class ModPresetStore
     public static void MigrateIfNeeded(IReadOnlyList<LoadOrderEntry> entries)
     {
         var data = Load();
-        if (data.SchemaVersion >= CurrentSchemaVersion) return;
+        var isLegacy = data.SchemaVersion < CurrentSchemaVersion;
+        if (!isLegacy && !_freshStore) return;
 
-        var installedIds = entries
+        var installed = entries
             .Where(e => !string.IsNullOrWhiteSpace(e.Id))
-            .Select(e => e.Id);
+            .Select(e => e.Id)
+            .ToList();
 
         for (var i = 0; i < data.Profiles.Count; i++)
         {
             var profile = data.Profiles[i];
-            foreach (var id in installedIds)
+            foreach (var id in installed)
             {
                 profile.KnownMods.Add(id);
             }
 
-            profile.AutoEnableNewMods = i == 0;
+            // Legacy files only recorded disabled mods; give the first preset (Default)
+            // the "auto-enable new mods" behaviour users asked for and leave the rest manual.
+            if (isLegacy)
+            {
+                profile.AutoEnableNewMods = i == 0;
+            }
         }
 
         data.SchemaVersion = CurrentSchemaVersion;
+        _freshStore = false;
         Save();
         DebugLog.Info(
-            $"Presets migrated to schema {CurrentSchemaVersion}. profiles={data.Profiles.Count}, installed={installedIds.Count()}");
+            $"Presets initialised (legacy={isLegacy}, schema={CurrentSchemaVersion}). profiles={data.Profiles.Count}, installed={installed.Count}");
     }
 
     // ── Snapshot & Apply ──────────────────────────────────
