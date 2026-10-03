@@ -165,6 +165,7 @@ internal static partial class SelfTest
                 ReportEntries("initial");
                 if (_mode == "panel")
                 {
+                    ProbeModdingScreenInjection();
                     Finish(tree);
                     return;
                 }
@@ -174,6 +175,7 @@ internal static partial class SelfTest
                 ReportEntries("Default");
                 SelectPresetByName(AutoPresetName);
                 ReportEntries(AutoPresetName);
+                ProbeModdingScreenInjection();
                 _waitTicks = 2;
                 _step = 2;
                 StartTicking(tree);
@@ -210,6 +212,47 @@ internal static partial class SelfTest
     }
 
     // ── Reporting ────────────────────────────────────────
+
+    /// <summary>
+    /// Exercises the most version-fragile part of the mod: the Harmony postfix on the game's
+    /// Modding screen _Ready, which injects the "Load Order" button. Instantiating the real
+    /// screen is the only way to prove the patch still binds on this game version.
+    /// </summary>
+    private static void ProbeModdingScreenInjection()
+    {
+        try
+        {
+            var screenType = AccessTools.TypeByName("MegaCrit.Sts2.Core.Nodes.Screens.ModdingScreen.NModdingScreen");
+            if (screenType == null)
+            {
+                Log("injection: NModdingScreen type NOT FOUND (patch cannot bind)");
+                return;
+            }
+
+            var create = AccessTools.Method(screenType, "Create");
+            if (create == null)
+            {
+                Log("injection: NModdingScreen.Create() NOT FOUND");
+                return;
+            }
+
+            if (create.Invoke(null, null) is not Node screen)
+            {
+                Log("injection: Create() returned null (scene load failed - expected in some headless runs)");
+                return;
+            }
+
+            ((SceneTree)Engine.GetMainLoop()).Root.AddChild(screen);
+            var button = screen.FindChild("LoadOrderManager_OpenButton", true, false);
+            var panel = screen.FindChild("LoadOrderManager_Panel", true, false);
+            Log($"injection: modding screen ready, open button present = {button != null}, panel present = {panel != null}");
+            screen.QueueFree();
+        }
+        catch (Exception ex)
+        {
+            Log($"injection: FAILED {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 
     private static void ReportEntries(string stage)
     {
