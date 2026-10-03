@@ -142,7 +142,14 @@ if ($stagedManifest.version -ne $modVersion) { throw "package self-check failed:
 if ($stagedManifest.min_game_version -ne $minGameVersion) { throw "package self-check failed: min_game_version mismatch" }
 Write-Host "[3/5] Package self-check OK  (root: 1 loader, bin/: $($built.Count) implementation(s), i18n: $langCount)" -ForegroundColor Green
 
-# --- 8. 本地部署 -------------------------------------------------------------
+# --- 8. 同步 torelease/（staging 真源，工坊 content 必须与它一致） -------------
+$toReleaseDir = Join-Path $ProjectRoot "torelease"
+if (Test-Path $toReleaseDir) { Remove-Item $toReleaseDir -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $toReleaseDir | Out-Null
+Copy-Item "$stageRoot\*" $toReleaseDir -Recurse -Force
+Write-Host "[4/5] OK  torelease/ staging refreshed" -ForegroundColor Green
+
+# --- 9. 本地部署 -------------------------------------------------------------
 if (-not $NoLocalDeploy) {
     $localMods = Join-Path $GameDir "mods"
     if (-not (Test-Path $localMods)) { throw "mods folder not found: $localMods" }
@@ -160,10 +167,10 @@ if (-not $NoLocalDeploy) {
     if (Test-Path $target) { Remove-Item $target -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $target | Out-Null
     Copy-Item "$stageRoot\*" $target -Recurse -Force
-    Write-Host "[4/5] OK  deployed to $target" -ForegroundColor Green
+    Write-Host "  OK  deployed to $target" -ForegroundColor Green
 }
 
-# --- 9. 同步工坊 workspace（上传真源，不自动上传） ---------------------------
+# --- 10. 同步工坊 workspace（上传真源，不自动上传） --------------------------
 if ($StageWorkshop) {
     Write-Host "[5/5] Staging workshop workspace content..." -ForegroundColor Yellow
     $wsContent = Join-Path (Split-Path $ProjectRoot -Parent) "_workshop_workspaces\$ModId\content"
