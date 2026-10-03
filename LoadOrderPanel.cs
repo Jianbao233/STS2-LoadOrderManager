@@ -91,6 +91,7 @@ public partial class LoadOrderPanel : Control
     private Vector2 _layoutViewport = new(1920f, 1080f);
     private bool _layoutCheckHooked;
     private int _layoutCheckFramesPending;
+    private int _layoutStepsRemaining;
 
     public override void _Ready()
     {
@@ -351,26 +352,64 @@ public partial class LoadOrderPanel : Control
         DebugLog.Info(
             $"UI layout: viewport={viewport.X:0}x{viewport.Y:0}, compact={compact}, dialog={width:0}x{height:0}, top={marginTop:0}, listMinHeight={listMinHeight:0}");
 
-        // Verify on a later frame (containers resolve their sizes during idle), via a
-        // signal rather than CallDeferred: C# methods are not always reachable by name.
-        _layoutCheckFramesPending = 2;
-        EnsureLayoutCheckHook();
+        ScheduleLayoutVerification();
     }
 
-    private void EnsureLayoutCheckHook()
+    private void ScheduleLayoutVerification()
     {
+        _layoutStepsRemaining = 2;
+        _layoutCheckFramesPending = 2;
+
         var tree = GetTree();
         if (tree == null || _layoutCheckHooked) return;
         _layoutCheckHooked = true;
+        // Verify on a later frame (containers resolve their sizes during idle), via a signal
+        // rather than CallDeferred: C# methods are not always reachable by name.
         tree.ProcessFrame += OnProcessFrame;
     }
 
     private void OnProcessFrame()
     {
-        if (_layoutCheckFramesPending <= 0) return;
-        _layoutCheckFramesPending--;
-        if (_layoutCheckFramesPending > 0) return;
+        if (_layoutStepsRemaining <= 0) return;
+        if (_layoutCheckFramesPending > 0)
+        {
+            _layoutCheckFramesPending--;
+            return;
+        }
+
+        if (_layoutStepsRemaining == 2)
+        {
+            _layoutStepsRemaining = 1;
+            CorrectLayoutOverflow();
+            _layoutCheckFramesPending = 2;
+            return;
+        }
+
+        _layoutStepsRemaining = 0;
         LogLayoutCheck();
+    }
+
+    /// <summary>
+    /// Self-heal: autowrap labels report a wrapped height for their *current* width, which is
+    /// meaningless before the dialog has been sized (it can be one line per word). If that
+    /// pessimistic first pass left the panel taller than its box, give the difference back to
+    /// the list - that keeps the footer inside the canvas no matter how the estimate was off.
+    /// </summary>
+    private void CorrectLayoutOverflow()
+    {
+        if (_dialog == null || _list == null) return;
+
+        var boxHeight = _dialog.OffsetBottom - _dialog.OffsetTop;
+        var overflow = _dialog.Size.Y - boxHeight;
+        if (overflow <= 1f) return;
+
+        var current = _list.CustomMinimumSize.Y;
+        var corrected = Mathf.Max(MinListHeight, current - overflow);
+        if (Mathf.Abs(corrected - current) < 0.5f) return;
+
+        _list.CustomMinimumSize = new Vector2(_list.CustomMinimumSize.X, corrected);
+        DebugLog.Info(
+            $"UI layout correction: panel exceeded its box by {overflow:0}px, list minimum {current:0} -> {corrected:0}");
     }
 
     /// <summary>Height taken by everything except the list, so the list can absorb the rest.</summary>
@@ -379,24 +418,36 @@ public partial class LoadOrderPanel : Control
         var sum = 0f;
         var visible = 0;
 
-        void Add(Control control)
+        void Add(Control control, float cap)
         {
             if (!control.Visible) return;
-            sum += control.GetCombinedMinimumSize().Y;
+            sum += BoundedMinHeight(control, cap);
             visible++;
         }
 
-        Add(_title);
-        Add(_subtitle);
-        Add(_warningLabel);
-        Add(_presetBar);
-        Add(_footer);
+        Add(_title, 44f);
+        Add(_subtitle, 70f);
+        Add(_warningLabel, 56f);
+        Add(_presetBar, 220f);
+        Add(_footer, 80f);
 
         visible++; // the body itself always participates in the separation count
         if (visible > 1) sum += RootSeparation * (visible - 1);
         sum += 24f; // MarginContainer top + bottom
 
         return sum + 8f; // slack for rounding / hover style changes
+    }
+
+    /// <summary>
+    /// Minimum height of one chrome element, capped. The cap matters because autowrap labels
+    /// report the height they would need at their *current* width, which before the first
+    /// layout pass is ~0 and yields absurd values (one line per word).
+    /// </summary>
+    private static float BoundedMinHeight(Control control, float cap)
+    {
+        var height = control.GetCombinedMinimumSize().Y;
+        if (float.IsNaN(height) || height <= 0f) return cap;
+        return Mathf.Min(height, cap);
     }
 
     /// <summary>
@@ -894,6 +945,11 @@ public partial class LoadOrderPanel : Control
     {
         var data = ModPresetStore.Load();
         var name = "Profile " + (data.Profiles.Count + 1);
+        CreatePresetFromCurrent(name);
+    }
+
+    private void CreatePresetFromCurrent(string name)
+    {
         ModPresetStore.CreatePreset(name, _entries);
         RefreshPresetDropdown();
         RefreshPolicyCheckbox();
@@ -1385,4 +1441,17 @@ public partial class LoadOrderPanel : Control
     {
         _statusLabel.Text = text;
     }
+
+    // ── Self-test hooks ───────────────────────────────────
+    // Used only by SelfTest when LOADORDER_SELFTEST is set; a normal launch never calls these.
+
+    internal IReadOnlyList<LoadOrderEntry> DebugEntries => _entries;
+
+    internal void DebugLogLayoutCheck() => LogLayoutCheck();
+
+    internal void DebugSelectPreset(int index) => OnPresetSelected(index);
+
+    internal void DebugCreatePreset(string name) => CreatePresetFromCurrent(name);
+
+    internal void DebugApplyOrder() => ApplyOrder();
 }

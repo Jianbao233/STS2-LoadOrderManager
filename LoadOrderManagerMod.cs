@@ -33,6 +33,9 @@ public static class LoadOrderManagerMod
         DebugLog.Info($"Log file: {DebugLog.LogPath}");
         ApplyHarmonyPatches();
         DebugLog.Info("Loaded.");
+
+        // Inert unless LOADORDER_SELFTEST is set (see SelfTest.cs).
+        SelfTest.Schedule();
     }
 
     /// <summary>

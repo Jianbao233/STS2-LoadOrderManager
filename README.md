@@ -188,6 +188,26 @@ $env:LOADORDER_UI_COMPACT=1        # 强制紧凑布局
 启动后看 `load_order_manager.log` 里的 `UI layout:` / `UI layout check:` 两行：
 `footerInside=True` 与 `dialogInside=True` 即表示页脚完整落在画布内。
 
+### 无头端到端自检（`SelfTest.cs`）
+
+`SelfTest` 在**未设置环境变量时完全惰性**，正常启动不做任何事；设置后才驱动一次脚本化验证
+（用于 CI/无头回归，不需要人工点界面）：
+
+```powershell
+$env:LOADORDER_SELFTEST="full"                     # panel = 只建面板并校验布局
+$env:LOADORDER_SELFTEST_WRITE="1"                  # 允许写 settings.save（默认只读）
+$env:LOADORDER_SELFTEST_APPLY="Default"            # 在哪个预设上执行「应用」
+$env:LOADORDER_SELFTEST_PROBE="SomeModId"          # 当作"新订阅的模组"来观察策略
+& "F:\...\SlayTheSpire2.exe" --headless --quit-after 0 --log-file <日志路径>
+```
+
+输出全部带 `[SelfTest]` 前缀（同时进 `godot.log` 与 `load_order_manager.log`）：
+驱动方式、每个预设下的 `known/disabled/entries`、探针模组的 `known/enabled/isNew`、
+布局校验结论、以及「应用」之后 `settings.save` 里的实际条目。
+
+> 驱动用的是 `SceneTreeTimer` 链，而不是节点 `_Process` 或 `SceneTree.ProcessFrame` 信号
+> ——后两者在游戏启动过程中会被暂停/中断，导致自检静默卡死（实测踩过）。
+
 ---
 
 ## License

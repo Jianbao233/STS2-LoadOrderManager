@@ -166,6 +166,20 @@ internal static class ModPresetStore
             }
         }
 
+        // No file yet: the current settings.save state *is* the first preset's definition.
+        // Seeding only KnownMods would leave DisabledMods empty, which means "everything
+        // enabled" - switching to that preset would silently re-enable every mod the player
+        // had turned off.
+        if (_freshStore)
+        {
+            var current = data.Profiles[data.CurrentProfileIndex];
+            foreach (var entry in entries)
+            {
+                if (string.IsNullOrWhiteSpace(entry.Id)) continue;
+                if (!entry.IsEnabled) current.DisabledMods.Add(entry.Id);
+            }
+        }
+
         data.SchemaVersion = CurrentSchemaVersion;
         _freshStore = false;
         Save();
